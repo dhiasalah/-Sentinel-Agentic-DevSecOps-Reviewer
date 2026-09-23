@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 1 — Foundations
-- **Step:** 1.0 — Getting started (tools + repo structure)
-- **Lesson:** `lessons/week01/00-getting-started.md`
+- **Step:** 1.1 — Python venv + first FastAPI "hello world"
+- **Lesson:** `lessons/week01/01-fastapi-hello-world.md`
 - **Student level:** beginner · **Mode:** skeleton + TODOs · **Language:** English
 
 ---
@@ -15,7 +15,7 @@
 Weeks are broken into small steps when we reach them. Only Week 1 is detailed for now.
 
 ### Week 1 — Foundations
-- [ ] 1.0 Install and verify tools (Git, Python 3.12, Docker Desktop, VS Code) + `git init` + monorepo folders
+- [x] 1.0 Install and verify tools (Git, Python 3.12, Docker Desktop, VS Code) + `git init` + monorepo folders — *done 2026-09-23 (Python 3.13.5; repo pushed to GitHub)*
 - [ ] 1.1 Python virtual environment + first FastAPI "hello world" (`apps/api`)
 - [ ] 1.2 Add a `/health` endpoint + a first test with pytest
 - [ ] 1.3 Write a Dockerfile for the API
@@ -88,8 +88,9 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | Date | What was done | Concepts learned | Open questions |
 |---|---|---|---|
 | 2026-09-23 | Tutorial set up (CLAUDE.md, PROGRESS.md, lessons/) | — | — |
+| 2026-09-23 | Step 1.0: tools installed, repo initialised, 8 folders with `.gitkeep`, first commit pushed to GitHub | Git tracks files not folders; stage (`add`) vs snapshot (`commit`) vs upload (`push`); containers = same environment everywhere | — |
 
 ---
 
 ## Blockers / questions to revisit
-- (none yet)
+- Repo is public on GitHub → be extra careful never to commit API keys (see step 1.5). Add a `.gitignore` in step 1.1.
