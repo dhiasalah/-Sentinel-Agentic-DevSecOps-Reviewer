@@ -1,131 +1,114 @@
 # Week 1 · Step 1.1 — Python venv + first FastAPI "hello world"
 
-## 🎯 Goal of this step
-Create a Python virtual environment for the API, install FastAPI, and run a tiny web server
-that answers `{"message": "..."}` in your browser.
-This is the start of Sentinel's **API gateway**, the part that will later receive GitHub webhooks.
+## 🎯 Goal
+A running FastAPI server in `apps/api` that answers `GET /` with JSON. This is the start of Sentinel's
+**API gateway**, which will later receive GitHub webhooks.
 
-## 📚 Concepts you need
-- **API** — a program other programs talk to over HTTP. The browser (or GitHub) sends a
-  **request** to a URL, and the API sends back a **response**, often as JSON.
-- **Endpoint / route** — one URL + one HTTP method that the API handles, e.g. `GET /`.
-- **HTTP methods** — `GET` = read something, `POST` = send something (GitHub webhooks use POST).
-- **JSON** — a text format for data: `{"key": "value"}`. A Python `dict` becomes JSON automatically in FastAPI.
-- **FastAPI** — a Python framework for building APIs quickly, with automatic docs. [Docs](https://fastapi.tiangolo.com/tutorial/first-steps/)
-- **Uvicorn** — the **server** that actually listens on a port and passes requests to your FastAPI app.
-  Analogy: FastAPI is the chef (it decides what to answer), Uvicorn is the waiter (it takes orders and brings the food). [Docs](https://www.uvicorn.org/)
-- **Decorator** (`@app.get("/")`) — a line above a function that "registers" it. Here it means:
-  *"when someone sends GET /, call this function."*
-- **`requirements.txt`** — the list of packages the project needs, so anyone (or Docker, in step 1.3)
-  can install the exact same set.
+## 💻 Commands
+From the repo root, in PowerShell:
 
-## 🧩 The code
-
-### Target structure for this step
+```powershell
+cd apps/api
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install "fastapi[standard]"
 ```
-apps/api/
-├── .venv/              # the virtual environment (NOT committed)
-├── app/
-│   ├── __init__.py     # empty file: makes "app" a Python package
-│   └── main.py         # the FastAPI app
-└── requirements.txt
-.gitignore              # at the repo root
-```
-You can delete `apps/api/.gitkeep` now: the folder won't be empty anymore.
+Expected: your prompt starts with `(.venv)` and pip ends with `Successfully installed fastapi-... uvicorn-... ...`.
 
-### `apps/api/app/main.py` (skeleton)
+> If activation fails with *"running scripts is disabled on this system"*, run once:
+> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, then activate again.
+
+`requirements.txt` (you already have it) lists only the **direct** dependency:
+```
+fastapi[standard]
+```
+We don't paste the whole `pip freeze` output: that would pin dozens of transitive packages by hand.
+In a later step we'll pin versions properly (lock file) for reproducible Docker builds.
+
+## 🧩 Code, piece by piece
+
+### 1. The app object
+**Where:** `apps/api/app/main.py`: replace the `app = ...` line (and delete the TODO comments).
+
 ```python
 from fastapi import FastAPI
 
-# TODO(student): create the FastAPI application object and store it in a variable called `app`.
-#   Give it a title "Sentinel API" (look for the `title` parameter in the First Steps docs).
-app = ...
+app = FastAPI(title="Sentinel API")
+```
+`FastAPI(...)` creates the application: a registry of routes plus the OpenAPI schema it generates for
+`/docs`. Uvicorn will look for this exact variable name (`app`). The `title` shows up in the docs page.
 
+### 2. The first route
+**Where:** same file, replace the `root()` function.
 
+```python
 @app.get("/")
 def root():
-    # TODO(student): return a dict with one key "message" and a welcome text as the value.
-    ...
+    return {"message": "Sentinel API is running"}
 ```
-**Explanation**
-- `from fastapi import FastAPI` — imports the class we need.
-- `app = FastAPI(...)` — the application. Uvicorn will look for this exact variable name.
-- `@app.get("/")` — registers `root()` as the handler for `GET /`.
-- The function returns a `dict`; FastAPI converts it to JSON for you.
+The decorator registers `root()` as the handler for `GET /`. Returning a `dict` is enough: FastAPI
+serialises it to JSON and sets `Content-Type: application/json` for you.
 
-### `.gitignore` (repo root, partial)
+### 3. `.gitignore`
+**Where:** repo root `.gitignore` (currently empty). Paste:
+
 ```gitignore
-# Python virtual environments
+# Python
 .venv/
-
-# Python cache files
 __pycache__/
+*.pyc
 
-# TODO(student): add a line so that any file named `.env` is ignored (we'll use it in step 1.5).
+# Secrets: never commit
+.env
+.env.*
+!.env.example
 ```
-**Why now?** A venv contains thousands of files specific to *your* machine. It must never be committed.
-Your repo is **public**, so ignoring `.env` early protects your future API keys.
+The venv is machine-specific and huge, and `__pycache__` is compiled bytecode Python regenerates itself,
+so neither belongs in git. `.env` will hold API keys from step 1.5. The `!.env.example` line re-allows a
+template file with fake values, which is a common pattern.
 
-## ✍️ Your TODOs
-1. Open a terminal in `apps/api/` and create the venv:
-   ```powershell
-   cd apps/api
-   python -m venv .venv
-   ```
-2. **Activate** it (you must do this in every new terminal):
-   ```powershell
-   .\.venv\Scripts\Activate.ps1
-   ```
-   Your prompt should now start with `(.venv)`.
-3. Install FastAPI and Uvicorn:
-   ```powershell
-   pip install "fastapi[standard]"
-   ```
-4. Save your dependencies. TODO(student): create `requirements.txt` containing just the packages you
-   installed *directly* (one per line, e.g. `fastapi[standard]`). Look up what `pip freeze` does and
-   think about why we don't simply paste its whole output here (we'll discuss).
-5. Create `app/__init__.py` (empty) and `app/main.py` from the skeleton, and fill in the TODOs.
-6. Create the root `.gitignore` and fill in its TODO.
-7. Run the server (from `apps/api/`, with the venv active):
-   ```powershell
-   uvicorn app.main:app --reload
-   ```
-8. When it works: commit with a message like `feat(api): add FastAPI hello world` and push.
-   Before committing, run `git status` and check that **`.venv` does not appear**.
+### 4. Remove the already-committed cache files
+The `.pyc` files were committed before the `.gitignore` existed, so git still tracks them. Untrack them
+(this keeps the files on disk and only removes them from git):
 
-## ✅ How to check it works
-Terminal after step 7:
+```powershell
+cd ../..    # back to repo root
+git rm -r --cached apps/api/app/__pycache__
+git status
 ```
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process ...
-INFO:     Application startup complete.
-```
-Then open in your browser:
-- http://127.0.0.1:8000 → `{"message":"<your text>"}`
-- http://127.0.0.1:8000/docs → an interactive page generated by FastAPI, titled **Sentinel API**. Try the "Try it out" button.
+Expected: `deleted: apps/api/app/__pycache__/...pyc` (2 files) staged, and **no** `.venv` in the list.
 
-`uvicorn app.main:app` means: *in the package `app`, file `main.py`, use the variable `app`.*
-
-## ⚠️ Common mistakes
-- **"running scripts is disabled on this system"** when activating → PowerShell blocks scripts by default. Run once:
-  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, then activate again.
-- **`uvicorn: command not found`** / **`No module named fastapi`** → the venv is not active (no `(.venv)` in the prompt).
-- **`Could not import module "app.main"`** → you ran uvicorn from the wrong folder. You must be in `apps/api/`.
-- `.venv` shows up in `git status` → your `.gitignore` is not at the repo root or has a typo.
-- You use Python **3.13**: that's fine for FastAPI. If a package later refuses to install, tell Claude, since some tools lag behind new Python versions.
+## 📚 Key concepts
+- **Uvicorn vs FastAPI**: FastAPI is the framework (it decides *what* to answer). Uvicorn is the ASGI
+  server (it listens on a port and hands requests to the app). Keeping them separate lets you swap or
+  tune the server (workers, ports) without touching app code. [FastAPI](https://fastapi.tiangolo.com/tutorial/first-steps/) · [Uvicorn](https://www.uvicorn.org/)
+- `uvicorn app.main:app` means *package `app` → module `main.py` → variable `app`*.
 
 ## 🔐 Security note
-`--reload` and binding to `127.0.0.1` (only your own machine) are for **development only**.
-In production (week 9) we'll run without `--reload`, inside a container, behind proper config.
+- Your repo is **public**: `.gitignore` for `.env` goes in *before* any key exists. Once a secret is pushed,
+  deleting it isn't enough: it stays in git history and bots scrape GitHub for keys within minutes.
+- `--reload` and `127.0.0.1` are **dev only**. In production (week 9) there's no reload, and the server
+  binds to `0.0.0.0` inside a container behind the cluster's ingress.
 
-## 🤔 Check your understanding
-1. What's the difference between FastAPI and Uvicorn?
-2. What does `--reload` do? Change the message in `main.py` while the server runs and watch the terminal.
-3. Why do we list packages in `requirements.txt` instead of committing the `.venv` folder?
+## ✅ Check it works
+From `apps/api/` with the venv active:
+```powershell
+uvicorn app.main:app --reload
+```
+Expected:
+```
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Application startup complete.
+```
+- http://127.0.0.1:8000 → `{"message":"Sentinel API is running"}`
+- http://127.0.0.1:8000/docs → interactive docs titled **Sentinel API**
+
+Then commit (from repo root):
+```powershell
+git add .gitignore apps/api/app/main.py
+git commit -m "fix(api): implement hello world route and add .gitignore"
+git push
+```
 
 ## ➡️ Next step
-**1.2 — Add a `/health` endpoint + your first test with pytest.**
-When you're done, tell Claude **"I finished step 1.1"** and include:
-- a screenshot or the text of the `/` response,
-- your answers to the 3 questions (+ your thoughts on `pip freeze` from TODO 4).
-Claude will read your `main.py`, `requirements.txt` and `.gitignore` to review them.
+**1.2: `/health` endpoint + first pytest test.** Tell Claude **"I finished step 1.1, please review"**.

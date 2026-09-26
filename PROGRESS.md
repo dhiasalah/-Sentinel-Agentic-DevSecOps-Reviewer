@@ -7,7 +7,7 @@
 - **Week:** 1 — Foundations
 - **Step:** 1.1 — Python venv + first FastAPI "hello world"
 - **Lesson:** `lessons/week01/01-fastapi-hello-world.md`
-- **Student level:** beginner · **Mode:** skeleton + TODOs · **Language:** English
+- **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
 ---
 

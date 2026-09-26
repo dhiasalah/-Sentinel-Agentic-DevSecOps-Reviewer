@@ -1,28 +1,12 @@
 # Week N · Step N.N — <Step title>
 
-## 🎯 Goal of this step
-What you will have at the end, in one or two sentences, and why it matters for Sentinel.
+## 🎯 Goal
+One or two sentences: what you'll have at the end and why it matters for Sentinel.
 
-## 📚 Concepts you need
-- **Term** — plain-language definition (with an analogy if useful). [Official docs](https://...)
+## 💻 Commands
+Copy-paste (PowerShell):
 
-## 🧩 The code
-Skeleton code with `# TODO(student):` markers.
-Explain each part below the code block: what it does and why it is written this way.
-
-```python
-# file: path/to/file.py
-# TODO(student): ...
-```
-
-## ✍️ Your TODOs
-1. ...
-2. ...
-
-## ✅ How to check it works
-Commands to run and the output you should see:
-
-```bash
+```powershell
 command
 ```
 Expected output:
@@ -30,15 +14,31 @@ Expected output:
 ...
 ```
 
-## ⚠️ Common mistakes
-- ...
+## 🧩 Code, piece by piece
+### 1. <what this piece does>
+**Where:** `path/to/file.py` — add under / replace ...
+
+```python
+# snippet
+```
+Short paragraph: what it does and why it is written this way.
+
+### 2. ...
+
+## 📚 Key concepts
+Only the AI / DevOps / security / deployment ideas worth knowing, with [docs](https://...) links.
 
 ## 🔐 Security note (if relevant)
 - ...
 
-## 🤔 Check your understanding
-1. ...
-2. ...
+## ✅ Check it works
+```powershell
+command
+```
+Expected output:
+```
+...
+```
 
 ## ➡️ Next step
-What comes next and what to tell Claude when you are done (e.g. "I finished step N.N, please review").
+What comes next — tell Claude "I finished step N.N, please review".
