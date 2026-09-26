@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 1 — Foundations
-- **Step:** 1.2 — `/health` endpoint + first pytest test
-- **Lesson:** `lessons/week01/02-health-and-tests.md`
+- **Step:** 1.3 — Dockerfile for the API
+- **Lesson:** `lessons/week01/03-dockerfile.md`
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
 ---
@@ -17,7 +17,7 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 ### Week 1 — Foundations
 - [x] 1.0 Install and verify tools (Git, Python 3.12, Docker Desktop, VS Code) + `git init` + monorepo folders — *done 2026-09-23 (Python 3.13.5; repo pushed to GitHub)*
 - [x] 1.1 Python virtual environment + first FastAPI "hello world" (`apps/api`) — *done 2026-09-26*
-- [ ] 1.2 Add a `/health` endpoint + a first test with pytest
+- [x] 1.2 Add a `/health` endpoint + a first test with pytest — *done 2026-09-26*
 - [ ] 1.3 Write a Dockerfile for the API
 - [ ] 1.4 Docker Compose (API + Redis) — `docker compose up` works
 - [ ] 1.5 Get Gemini and Groq API keys + `.env` handling and `.gitignore` (never commit secrets)
@@ -90,9 +90,11 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | 2026-09-23 | Tutorial set up (CLAUDE.md, PROGRESS.md, lessons/) | — | — |
 | 2026-09-23 | Step 1.0: tools installed, repo initialised, 8 folders with `.gitkeep`, first commit pushed to GitHub | Git tracks files not folders; stage (`add`) vs snapshot (`commit`) vs upload (`push`); containers = same environment everywhere | — |
 | 2026-09-26 | Switched teaching mode to copy-paste snippets + short explanations. Step 1.1: FastAPI app with `GET /`, root `.gitignore` (venv, pycache, `.env`), untracked committed `.pyc` files | FastAPI vs Uvicorn; `git rm --cached`; ignore secrets before they exist | `.gitignore` uses `apps/api/.venv/` → won't cover future venvs in `agents/` etc. |
+| 2026-09-26 | Step 1.2: `GET /health`, `requirements-dev.txt` (`-r requirements.txt` + pytest), 2 tests with `TestClient` — `2 passed` | Liveness vs readiness; in-process testing; keep test deps out of prod image; health endpoints must not leak info | `.gitignore` still `apps/api/.venv/` (not fixed yet) |
 
 ---
 
 ## Blockers / questions to revisit
 - Repo is public on GitHub → be extra careful never to commit API keys (see step 1.5). `.gitignore` with `.env` added in step 1.1 ✅.
+- `.gitignore`: change `apps/api/.venv/` → `.venv/` before creating venvs in other folders.
 - Commit messages: keep them descriptive (`fix(api)` alone says nothing in `git log`).
