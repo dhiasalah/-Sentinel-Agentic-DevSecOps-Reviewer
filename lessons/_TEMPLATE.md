@@ -3,6 +3,15 @@
 ## 🎯 Goal
 One or two sentences: what you'll have at the end and why it matters for Sentinel.
 
+## 🧰 Tools in this step
+For each new tool, in plain words:
+- **Tool name**: what it is (analogy) · what problem it solves · why Sentinel needs it · where it comes back later. [Docs](https://...)
+
+How they connect (small diagram if there are several tools):
+```
+you ──> tool A ──> tool B
+```
+
 ## 💻 Commands
 Copy-paste (PowerShell):
 

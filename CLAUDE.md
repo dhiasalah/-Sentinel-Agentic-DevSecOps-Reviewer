@@ -45,6 +45,9 @@ Go fast on the basics, go deep on AI / DevOps / security / deployment.
 ---
 
 ## Style
+- **Explain every new tool before using it** (Docker, Redis, Compose, pytest, Terraform, k3s, ...), in plain words:
+  **what it is** (one-line analogy), **what problem it solves**, **why Sentinel needs it**, and where it shows up later in the roadmap.
+  Each lesson has a `🧰 Tools in this step` section for this, placed before the code. Show how the tools connect (small diagram) when there are several.
 - **Depth dial:** basics (Python syntax, FastAPI routing, git) → one line. AI agents, DevOps, security, deployment → explain the concept, the trade-offs and the "why" properly.
 - Always mention the **security angle** when relevant — this is a security project.
 - Link official docs for new tools.
