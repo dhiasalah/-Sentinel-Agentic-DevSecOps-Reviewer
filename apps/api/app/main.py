@@ -2,10 +2,10 @@ import os
 
 import redis
 from fastapi import FastAPI, HTTPException
+from app.config import settings
 
 app = FastAPI(title="Sentinel API")
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-redis_client = redis.Redis.from_url(REDIS_URL, socket_connect_timeout=2)
+redis_client = redis.Redis.from_url(settings.redis_url, socket_connect_timeout=2)
 
 @app.get("/")
 def root():

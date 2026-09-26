@@ -1,11 +1,9 @@
 from fastapi.testclient import TestClient
-
-from app.main import app
 import redis
-
+from app.config import settings
 from app import main
 
-client = TestClient(app)
+client = TestClient(main.app)
 
 def test_root_returns_message():
     response = client.get("/")
@@ -26,3 +24,9 @@ def test_ready_returns_503_when_redis_is_down(monkeypatch):
 
     response = client.get("/ready")
     assert response.status_code == 503
+
+def test_secrets_are_hidden_when_printed():
+    real_key = settings.gemini_api_key.get_secret_value()
+    assert real_key not in str(settings)
+    assert real_key not in repr(settings)
+

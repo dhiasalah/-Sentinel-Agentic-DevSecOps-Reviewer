@@ -6,6 +6,7 @@ services:
     image: sentinel-api:dev
     ports:
       - "127.0.0.1:8000:8000"
+    env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
     depends_on:
