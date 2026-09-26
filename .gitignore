@@ -1,6 +1,5 @@
 # Python
-apps/api/.venv/
-__pycache__/
+.venv/__pycache__/
 *.pyc
 
 # Secrets: never commit
