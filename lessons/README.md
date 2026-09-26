@@ -7,6 +7,7 @@ Concept deep-dives go in `lessons/concepts/`.
 - [1.0 Getting started — tools + repo structure](week01/00-getting-started.md)
 - [1.1 Python venv + FastAPI hello world](week01/01-fastapi-hello-world.md)
 - [1.2 `/health` endpoint + first pytest test](week01/02-health-and-tests.md)
+- [1.3 Dockerfile for the API](week01/03-dockerfile.md)
 
 ## Concepts
 - (none yet)
