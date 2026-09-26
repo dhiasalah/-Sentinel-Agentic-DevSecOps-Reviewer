@@ -9,6 +9,7 @@ Concept deep-dives go in `lessons/concepts/`.
 - [1.2 `/health` endpoint + first pytest test](week01/02-health-and-tests.md)
 - [1.3 Dockerfile for the API](week01/03-dockerfile.md)
 - [1.4 Docker Compose (API + Redis)](week01/04-docker-compose.md)
+- [1.5 API keys + `.env` / secrets handling](week01/05-secrets-and-env.md)
 
 ## Concepts
 - (none yet)
