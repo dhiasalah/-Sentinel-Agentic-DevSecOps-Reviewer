@@ -10,6 +10,10 @@ Concept deep-dives go in `lessons/concepts/`.
 - [1.3 Dockerfile for the API](week01/03-dockerfile.md)
 - [1.4 Docker Compose (API + Redis)](week01/04-docker-compose.md)
 - [1.5 API keys + `.env` / secrets handling](week01/05-secrets-and-env.md)
+- [1.6 Oracle Cloud sign-up (account hardening)](week01/06-oracle-cloud-signup.md)
+
+## Week 2 — First agent
+- [2.1 Semgrep scan → JSON → `Finding` models](week02/01-semgrep-scan.md)
 
 ## Concepts
 - (none yet)

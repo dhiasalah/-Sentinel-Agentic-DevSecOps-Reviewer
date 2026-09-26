@@ -4,9 +4,9 @@
 > and updates it when a step is verified. You can edit it too.
 
 ## Current position
-- **Week:** 1 — Foundations
-- **Step:** 1.5 — API keys (Gemini, Groq) + `.env` handling
-- **Lesson:** `lessons/week01/05-secrets-and-env.md`
+- **Week:** 2 — First agent
+- **Step:** 2.1 — Run Semgrep on a vulnerable demo app + parse its JSON into `Finding` objects
+- **Lesson:** `lessons/week02/01-semgrep-scan.md`
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
 ---
@@ -20,14 +20,15 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - [x] 1.2 Add a `/health` endpoint + a first test with pytest — *done 2026-09-26*
 - [x] 1.3 Write a Dockerfile for the API — *done 2026-09-26 (image 278MB)*
 - [x] 1.4 Docker Compose (API + Redis) — `docker compose up` works — *done 2026-09-26*
-- [ ] 1.5 Get Gemini and Groq API keys + `.env` handling and `.gitignore` (never commit secrets)
-- [ ] 1.6 Sign up for Oracle Cloud (start early, approval can take time)
-- **Deliverable:** `docker compose up` runs the API locally
+- [x] 1.5 Get Gemini and Groq API keys + `.env` handling and `.gitignore` (never commit secrets) — *done 2026-09-26*
+- [x] 1.6 Sign up for Oracle Cloud (start early, approval can take time) — *done 2026-09-26 (home region Paris, MFA on, `sentinel` compartment, budget alert)*
+- **Deliverable:** `docker compose up` runs the API locally ✅ **Week 1 complete**
 
 ### Week 2 — First agent
-- [ ] Run Semgrep on a test repo, capture JSON output
-- [ ] LLM triage: deduplicate, explain, rank severity
-- [ ] Simple LLM router (Gemini primary, Groq fallback)
+- [ ] 2.1 Semgrep (in Docker) on a deliberately vulnerable demo app → parse JSON into `Finding` models (`agents/`)
+- [ ] 2.2 Simple LLM router (Gemini primary, Groq fallback)
+- [ ] 2.3 LLM triage: deduplicate, explain, rank severity (structured output, PR code treated as untrusted)
+- [ ] 2.4 CLI: scan a local repo and print the triaged report
 - **Deliverable:** CLI tool that scans a local repo and prints a triaged report
 
 ### Week 3 — GitHub App
@@ -93,10 +94,13 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | 2026-09-26 | Step 1.2: `GET /health`, `requirements-dev.txt` (`-r requirements.txt` + pytest), 2 tests with `TestClient` — `2 passed` | Liveness vs readiness; in-process testing; keep test deps out of prod image; health endpoints must not leak info | `.gitignore` still `apps/api/.venv/` (not fixed yet) |
 | 2026-09-26 | Step 1.3: Dockerfile (slim base, layer caching, non-root `appuser`, HEALTHCHECK on `/health`, exec-form CMD) + `.dockerignore`; image built | Build context; layer cache; non-root = least privilege ("master key vs room key"); no secrets in layers; 0.0.0.0 in containers | Asked for a simpler explanation of non-root user → added "plain words" note to lesson 03 |
 | 2026-09-26 | Lessons now start with a "🧰 Tools in this step" section (user request). Step 1.4: `compose.yaml` (api + redis, private network, Redis not published, API on 127.0.0.1, healthcheck, named volume), `/ready` pings Redis → 503, monkeypatch test — `3 passed` | Docker Compose; Redis as job queue; env-var config (12-factor); liveness vs readiness; mocking with monkeypatch | Test file imports `app` twice (`from app.main import app` + `from app import main`) |
+| 2026-09-26 | Step 1.5: Gemini + Groq keys in root `.env` (ignored), `.env.example` committed, `config.py` with pydantic-settings + `SecretStr` (fail fast), `env_file` in compose, secret-masking test — `4 passed`; no keys in git history | Secret lifecycle; fail-fast config; SecretStr; env precedence (`environment` > `env_file`); YAML indentation = meaning (debugged `env_file` nested under `environment`) | `.gitignore` line 2 is `.venv/__pycache__/` (two rules merged) |
+| 2026-09-26 | Step 1.6: Oracle Cloud account (home region Paris), MFA enabled, `sentinel` compartment, budget alert. Considered Azure for Students; kept Oracle | Cloud provider, region, tenancy/compartment, IAM, MFA, budget alerts, shared responsibility | 1.5 review fixes (`.gitignore` line 2, unused `import os`) still not committed |
 
 ---
 
 ## Blockers / questions to revisit
 - Repo is public on GitHub → be extra careful never to commit API keys (see step 1.5). `.gitignore` with `.env` added in step 1.1 ✅.
-- `.gitignore`: change `apps/api/.venv/` → `.venv/` before creating venvs in other folders.
+- `.gitignore` line 2 reads `.venv/__pycache__/` → split into `.venv/` and `__pycache__/` (works today only thanks to the venv's own `.gitignore` + `*.pyc`).
+- `main.py`: unused `import os` left over.
 - Commit messages: keep them descriptive (`fix(api)` alone says nothing in `git log`).

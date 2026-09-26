@@ -167,19 +167,23 @@ The API no longer reads env vars itself: it asks the validated settings object.
 **same indentation** as `environment:` (4 spaces), not inside it:
 
 ```yaml
-env_file: .env
-environment:
-  REDIS_URL: redis://redis:6379/0
+services:
+  api:
+    # ... build, image, ports ...
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
 ```
 
 > ⚠️ **Indentation is meaning in YAML.** If you indent `env_file: .env` under `environment:` (6 spaces),
 > Compose doesn't complain: it creates an env var literally _named_ `env_file` with the value `.env`, and
 > your keys never reach the container. The app then crashes at startup with
 > `2 validation errors for Settings … gemini_api_key Field required` (the fail-fast check doing its job).
-> Compose loads every line of `.env` into the container's environment. The `environment:` block
-> (`REDIS_URL: redis://redis:6379/0`) has **higher priority** than `env_file`, so inside Docker the API
-> still uses the hostname `redis`, while your laptop uses `localhost` from `.env`. The keys enter at
-> **runtime** and are never baked into the image (lesson 03's rule).
+
+Compose loads every line of `.env` into the container's environment. The `environment:` block
+(`REDIS_URL: redis://redis:6379/0`) has **higher priority** than `env_file`, so inside Docker the API
+still uses the hostname `redis`, while your laptop uses `localhost` from `.env`. The keys enter at
+**runtime** and are never baked into the image (lesson 03's rule).
 
 ### 7. A test that secrets can't leak
 
