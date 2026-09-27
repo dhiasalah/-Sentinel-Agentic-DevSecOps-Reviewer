@@ -17,6 +17,7 @@ Concept deep-dives go in `lessons/concepts/`.
 - [2.2 LLM router: Gemini primary, Groq fallback](week02/02-llm-router.md)
 - [2.3 LLM triage (Part A): structured, validated, untrusted-aware](week02/03-llm-triage.md)
 - [2.3 LLM triage (Part B): red-team your triage + policy layer](week02/03b-triage-red-team.md)
+- [2.4 CLI: `python -m sentinel scan` + exit codes](week02/04-cli.md)
 
 ## Concepts
 - [AI security from zero: what lesson 2.3 really does](concepts/ai-security-from-zero.md) ← start here
