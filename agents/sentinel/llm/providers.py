@@ -14,7 +14,7 @@ class ProviderUnavailable(Exception):
 class Provider(Protocol):
     name: str
 
-    def complete(self, system: str, user: str) -> str: ...
+    def complete(self, system: str, user: str, json_mode: bool = False) -> str: ...
 
 class GeminiProvider:
     name = "gemini"
@@ -26,13 +26,19 @@ class GeminiProvider:
         )
         self._model = model
 
-    def complete(self, system: str, user: str) -> str:
+    def complete(self, system: str, user: str, json_mode: bool = False) -> str:
         try:
             response = self._client.models.generate_content(
                 model=self._model,
                 contents=user,
-                config=genai_types.GenerateContentConfig(system_instruction=system, temperature=0),
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=system,
+                    temperature=0,
+                    response_mime_type="application/json" if json_mode else None,
+                    automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(disable=True),
+                ),
             )
+
         except genai_errors.APIError as e:
             if e.code == 429 or e.code >= 500:
                 raise ProviderUnavailable(f"gemini returned {e.code}") from e
@@ -48,7 +54,8 @@ class GroqProvider:
         self._client = groq.Groq(api_key=api_key, timeout=30, max_retries=0)
         self._model = model
 
-    def complete(self, system: str, user: str) -> str:
+    def complete(self, system: str, user: str, json_mode: bool = False) -> str:
+        extra = {"response_format": {"type": "json_object"}} if json_mode else {}
         try:
             response = self._client.chat.completions.create(
                 model=self._model,
@@ -57,7 +64,9 @@ class GroqProvider:
                     {"role": "user", "content": user},
                 ],
                 temperature=0,
+                **extra,
             )
+
         except (groq.RateLimitError, groq.InternalServerError, groq.APIConnectionError) as e:
             raise ProviderUnavailable(f"groq: {type(e).__name__}") from e
         return response.choices[0].message.content or ""

@@ -15,6 +15,8 @@ Concept deep-dives go in `lessons/concepts/`.
 ## Week 2 — First agent
 - [2.1 Semgrep scan → JSON → `Finding` models](week02/01-semgrep-scan.md)
 - [2.2 LLM router: Gemini primary, Groq fallback](week02/02-llm-router.md)
+- [2.3 LLM triage (Part A): structured, validated, untrusted-aware](week02/03-llm-triage.md)
+- [2.3 LLM triage (Part B): red-team your triage + policy layer](week02/03b-triage-red-team.md)
 
 ## Concepts
-- (none yet)
+- [Triage security explained simply (2.3)](concepts/triage-security-explained.md)
