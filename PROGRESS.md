@@ -4,9 +4,9 @@
 > and updates it when a step is verified. You can edit it too.
 
 ## Current position
-- **Week:** 2 — First agent
-- **Step:** 2.4 — CLI: scan a local repo and print the triaged report (Week 2 deliverable)
-- **Lesson:** `lessons/week02/04-cli.md` (not written yet)
+- **Week:** 3 — GitHub App
+- **Step:** 3.1 — not broken down yet (create GitHub App with minimal permissions)
+- **Lesson:** — (next: `lessons/week03/01-...`)
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
@@ -29,8 +29,8 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - [x] 2.1 Semgrep (in Docker) on a deliberately vulnerable demo app → parse JSON into `Finding` models (`agents/`) — *done 2026-09-26 (9 findings)*
 - [x] 2.2 Simple LLM router (Gemini primary, Groq fallback) — *done 2026-09-27 (`gemini-3.8-flash` + `openai/gpt-oss-120b`, 6 tests)*
 - [x] 2.3 LLM triage: deduplicate, explain, rank severity (structured output, PR code treated as untrusted) — *done 2026-09-27 (Part A + Part B policy layer, 22 tests, injection attack resisted + flagged)*
-- [ ] 2.4 CLI: scan a local repo and print the triaged report
-- **Deliverable:** CLI tool that scans a local repo and prints a triaged report
+- [x] 2.4 CLI: scan a local repo and print the triaged report — *done 2026-09-27 (written by Claude at user's request; 28 tests)*
+- **Deliverable:** CLI tool that scans a local repo and prints a triaged report ✅ **Week 2 complete**
 
 ### Week 3 — GitHub App
 - [ ] Create GitHub App with minimal permissions
@@ -101,6 +101,7 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | 2026-09-27 | Step 2.2: `Provider` protocol, `GeminiProvider` + `GroqProvider` (timeouts, no SDK retries), `LLMRouter` falls back only on `ProviderUnavailable` (429/5xx/network), 4 router tests with fakes — `6 passed`. Real calls: Gemini 200 OK; saw a real 503 → fallback. Both original models retired → switched to `gemini-3.8-flash` / `openai/gpt-oss-120b`. `is_dir()` fix in `run_semgrep` done | Provider abstraction; transient vs permanent errors (fallback on 429/5xx, raise on 404); model deprecation; pinned model vs `-latest` alias (reproducible evals); "listed ≠ accessible" | `config.py` default `groq_model` contains `"GROQ_MODEL=..."` (pasted whole line). Windows cp1252 console can crash on printing LLM output with Unicode (`‑`) |
 | 2026-09-27 | Step 2.3 Part A: `json_mode` in providers/router (AFC disabled), `TriagedIssue`, `triage.py` (schema-limited LLM output, random-tag untrusted wrapper, path-traversal-safe snippets, fail-closed id checks), 7 tests — `13 passed`. Real run: 9 findings → 4–5 issues. Asked for a plain-language security explanation → `lessons/concepts/triage-security-explained.md` | Structured output; output validation; spotlighting; least authority for the LLM; fail closed; path traversal | Two runs gave different groupings/severities (MD5 medium vs high; debug/0.0.0.0 merged vs split) even at temperature 0 → need evals (week 10). Pickle still missed (triage can't add findings, by design). `at:` repeats the same line (cosmetic). LLM `fix` text contains Markdown code blocks → render safely in PR comments (week 4) |
 | 2026-09-27 | User found lesson 2.3 too hard → wrote `concepts/ai-security-from-zero.md`. Step 2.3 Part B: `flask-injected` attack app, `policy.py` (severity floor from Semgrep, false positives kept + flagged, injection tripwire regex), `review_reasons` on `TriagedIssue`. Old sort test broke because the floor raised the fake AI's `low` → fixed the test (Claude edited it at user's request) — `22 passed`. Real attack: Gemini 503 → Groq; SQLi reported HIGH + "possible prompt injection" review flag | Prompt injection; red teaming; asymmetric risk (AI may escalate, humans de-escalate); test the guardrail, not the model; detection vs prevention; a new safety rule can legitimately break old tests | Only 1 attack × 1 run × 1 model so far → more attacks in the week 10 eval suite |
+| 2026-09-27 | Step 2.4: user found the CLI step uninteresting and asked Claude to implement it. Claude wrote `cli.py` (argparse `scan` sub-command, `--format text/json`, `--fail-on`, `-v`), `__main__.py`, `test_cli.py`, removed the old `__main__` block from `triage.py` — `28 passed`. Real run: 9 findings → 5 issues, exit 1; missing folder → exit 2 | Exit codes as an API for CI (0 clean / 1 issues / 2 tool error, a crash must never be 0); stdout vs stderr | Who sets `--fail-on` (repo owner, not PR author) → week 8 settings |
 
 ---
 
