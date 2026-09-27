@@ -10,6 +10,8 @@ SEMGREP_IMAGE = "semgrep/semgrep"
 
 def run_semgrep(target: Path) -> dict:
     target = target.resolve()
+    if not target.is_dir():
+        raise FileNotFoundError(f"scan target is not a directory: {target}")
     cmd = [
         "docker", "run", "--rm",
         "-v", f"{target}:/src:ro",

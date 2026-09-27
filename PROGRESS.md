@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 2 — First agent
-- **Step:** 2.1 — Run Semgrep on a vulnerable demo app + parse its JSON into `Finding` objects
-- **Lesson:** `lessons/week02/01-semgrep-scan.md`
+- **Step:** 2.2 — LLM router (Gemini primary, Groq fallback)
+- **Lesson:** `lessons/week02/02-llm-router.md`
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
 ---
@@ -25,7 +25,7 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - **Deliverable:** `docker compose up` runs the API locally ✅ **Week 1 complete**
 
 ### Week 2 — First agent
-- [ ] 2.1 Semgrep (in Docker) on a deliberately vulnerable demo app → parse JSON into `Finding` models (`agents/`)
+- [x] 2.1 Semgrep (in Docker) on a deliberately vulnerable demo app → parse JSON into `Finding` models (`agents/`) — *done 2026-09-26 (9 findings)*
 - [ ] 2.2 Simple LLM router (Gemini primary, Groq fallback)
 - [ ] 2.3 LLM triage: deduplicate, explain, rank severity (structured output, PR code treated as untrusted)
 - [ ] 2.4 CLI: scan a local repo and print the triaged report
@@ -96,11 +96,11 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | 2026-09-26 | Lessons now start with a "🧰 Tools in this step" section (user request). Step 1.4: `compose.yaml` (api + redis, private network, Redis not published, API on 127.0.0.1, healthcheck, named volume), `/ready` pings Redis → 503, monkeypatch test — `3 passed` | Docker Compose; Redis as job queue; env-var config (12-factor); liveness vs readiness; mocking with monkeypatch | Test file imports `app` twice (`from app.main import app` + `from app import main`) |
 | 2026-09-26 | Step 1.5: Gemini + Groq keys in root `.env` (ignored), `.env.example` committed, `config.py` with pydantic-settings + `SecretStr` (fail fast), `env_file` in compose, secret-masking test — `4 passed`; no keys in git history | Secret lifecycle; fail-fast config; SecretStr; env precedence (`environment` > `env_file`); YAML indentation = meaning (debugged `env_file` nested under `environment`) | `.gitignore` line 2 is `.venv/__pycache__/` (two rules merged) |
 | 2026-09-26 | Step 1.6: Oracle Cloud account (home region Paris), MFA enabled, `sentinel` compartment, budget alert. Considered Azure for Students; kept Oracle | Cloud provider, region, tenancy/compartment, IAM, MFA, budget alerts, shared responsibility | 1.5 review fixes (`.gitignore` line 2, unused `import os`) still not committed |
+| 2026-09-26 | Fixed `.gitignore` + unused import. Step 2.1: `agents/` project, `Finding` model, `run_semgrep` (Docker, read-only mount, list-form cmd, timeout), `parse_findings`, 2 unit tests; real scan = 9 findings | SAST; Semgrep rules/registry; normalization layer; CWE; unit vs integration tests; list-form subprocess vs shell injection | Scan results: duplicates (3 rules on line 24, 2 on 33, 2 for the SQLi), pickle + hardcoded password **missed** → input for 2.3 triage and for gitleaks (week 5). `run_semgrep` doesn't check the target exists (Docker creates an empty dir → silent 0 findings) |
 
 ---
 
 ## Blockers / questions to revisit
 - Repo is public on GitHub → be extra careful never to commit API keys (see step 1.5). `.gitignore` with `.env` added in step 1.1 ✅.
-- `.gitignore` line 2 reads `.venv/__pycache__/` → split into `.venv/` and `__pycache__/` (works today only thanks to the venv's own `.gitignore` + `*.pyc`).
-- `main.py`: unused `import os` left over.
+- `agents/sentinel/scanners/semgrep.py`: validate `target.is_dir()` before `docker run` (fix given in 2.1 review).
 - Commit messages: keep them descriptive (`fix(api)` alone says nothing in `git log`).
