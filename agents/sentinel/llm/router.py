@@ -22,11 +22,11 @@ class LLMRouter:
     def __init__(self, providers: list[Provider]):
         self._providers = providers
 
-    def complete(self, system: str, user: str) -> LLMResponse:
+    def complete(self, system: str, user: str, json_mode: bool = False) -> LLMResponse:
         failures = []
         for provider in self._providers:
             try:
-                text = provider.complete(system, user)
+                text = provider.complete(system, user, json_mode=json_mode)
                 return LLMResponse(provider=provider.name, text=text)
             except ProviderUnavailable as e:
                 log.warning("provider %s unavailable (%s), falling back", provider.name, e)
