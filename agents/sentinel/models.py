@@ -20,3 +20,4 @@ class TriagedIssue(BaseModel):
     explanation: str
     fix: str
     findings: list[Finding]
+    review_reasons: list[str] = []

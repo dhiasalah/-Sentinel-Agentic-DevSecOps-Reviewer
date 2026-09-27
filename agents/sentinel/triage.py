@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from pydantic import BaseModel, Field, ValidationError
-
+from sentinel.policy import SEVERITY_ORDER, apply_policy
 from sentinel.config import Settings
 from sentinel.llm.router import LLMRouter, build_router
 from sentinel.models import Finding, Severity, TriagedIssue
@@ -12,7 +12,6 @@ from sentinel.scanners.semgrep import parse_findings, run_semgrep
 
 log = logging.getLogger(__name__)
 
-SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
 
 
 class LLMIssue(BaseModel):
@@ -115,8 +114,12 @@ def triage(findings: list[Finding], root: Path, router: LLMRouter) -> list[Triag
         json_mode=True,
     )
     log.info("triage answered by %s", response.provider)
-    issues = parse_response(response.text, findings)
+    issues = [
+    apply_policy(issue, [read_snippet(root, f.file, f.line) for f in issue.findings])
+    for issue in parse_response(response.text, findings)
+    ]
     return sorted(issues, key=lambda issue: SEVERITY_ORDER.index(issue.severity))
+
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -129,6 +132,8 @@ if __name__ == "__main__":
         where = ", ".join(f"{f.file}:{f.line}" for f in issue.findings)
         print(f"[{issue.severity.upper():8}] {issue.title}{flag}")
         print(f"  at: {where}")
+        for reason in issue.review_reasons:
+            print(f"  ⚠ needs human review: {reason}")
         print(f"  why: {issue.explanation}")
         print(f"  fix: {issue.fix}\n")
     print(f"{len(findings)} findings -> {len(issues)} issues")
