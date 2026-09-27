@@ -7,8 +7,8 @@ from sentinel.models import Finding
 from sentinel.triage import TriageError, build_prompt, parse_response, read_snippet, triage
 
 
-def make_finding(line=2, rule="sqli"):
-    return Finding(tool="semgrep", rule_id=rule, severity="ERROR", message="msg", file="app.py", line=line)
+def make_finding(line=2, rule="sqli", severity="ERROR"):
+    return Finding(tool="semgrep", rule_id=rule, severity=severity, message="msg", file="app.py", line=line)
 
 
 def issue(ids, severity="high"):
@@ -72,6 +72,12 @@ def test_code_is_wrapped_as_untrusted(repo):
 
 def test_triage_asks_for_json_and_sorts_by_severity(repo):
     router = FakeRouter(answer(issue([1], "low"), issue([2], "critical")))
-    issues = triage([make_finding(1), make_finding(3)], repo, router)
+    issues = triage([make_finding(1, severity="INFO"), make_finding(3)], repo, router)
     assert router.json_mode is True
     assert [i.severity for i in issues] == ["critical", "low"]
+
+def test_hijacked_llm_cannot_hide_a_real_finding(repo):
+    hijacked = answer({**issue([1], severity="info"), "false_positive": True})
+    issues = triage([make_finding(line=2)], repo, FakeRouter(hijacked))
+    assert issues[0].severity == "high"
+    assert issues[0].review_reasons
