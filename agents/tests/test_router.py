@@ -11,7 +11,7 @@ class FakeProvider:
         self.error = error
         self.calls = 0
 
-    def complete(self, system, user):
+    def complete(self, system, user, json_mode=False):
         self.calls += 1
         if self.error:
             raise self.error
