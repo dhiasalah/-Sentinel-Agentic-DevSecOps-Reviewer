@@ -8,4 +8,4 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr
     groq_api_key: SecretStr
     gemini_model: str = "gemini-3.8-flash"
-    groq_model: str = "GROQ_MODEL=openai/gpt-oss-120b"
+    groq_model: str = "openai/gpt-oss-120b"
