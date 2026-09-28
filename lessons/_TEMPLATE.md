@@ -1,5 +1,9 @@
 # Week N · Step N.N — <Step title>
 
+## 🗺️ In plain words: what we're doing today
+One short paragraph, zero jargon (or jargon explained right away): where we are now, what we'll build today,
+and why. Finish with one concrete example of "what you'll see when it works".
+
 ## 🎯 Goal
 One or two sentences: what you'll have at the end and why it matters for Sentinel.
 

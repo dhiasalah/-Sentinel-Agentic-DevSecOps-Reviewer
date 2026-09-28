@@ -19,6 +19,9 @@ Concept deep-dives go in `lessons/concepts/`.
 - [2.3 LLM triage (Part B): red-team your triage + policy layer](week02/03b-triage-red-team.md)
 - [2.4 CLI: `python -m sentinel scan` + exit codes](week02/04-cli.md)
 
+## Week 3 — GitHub App
+- [3.1 Create the GitHub App (minimal permissions) + app JWT](week03/01-github-app.md)
+
 ## Concepts
 - [AI security from zero: what lesson 2.3 really does](concepts/ai-security-from-zero.md) ← start here
 - [Triage security explained simply (2.3)](concepts/triage-security-explained.md)
