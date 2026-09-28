@@ -39,6 +39,9 @@ Go fast on the basics, go deep on AI / DevOps / security / deployment.
 ## Lesson files
 - Path: `lessons/weekNN/NN-short-step-name.md` (e.g. `lessons/week01/02-health-and-tests.md`).
 - Follow `lessons/_TEMPLATE.md` — keep it short.
+- **Every lesson (and every chat answer that starts a new step) opens with "🗺️ In plain words"**: one short paragraph,
+  in the simplest possible words, saying what we'll do in this session and why, plus one concrete "what you'll see" example.
+  Do this before any tool, command or code.
 - After creating a lesson, add one line to the index in `lessons/README.md`.
 - Concept questions outside a step: answer in chat; if long/important, save as `lessons/concepts/<topic>.md`.
 

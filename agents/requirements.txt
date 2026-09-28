@@ -2,3 +2,5 @@ pydantic
 pydantic-settings
 google-genai
 groq
+PyJWT[crypto]
+httpx
