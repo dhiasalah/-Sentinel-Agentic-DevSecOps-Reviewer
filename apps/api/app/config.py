@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     gemini_api_key: SecretStr
     groq_api_key: SecretStr
+    github_webhook_secret: SecretStr
 
 settings = Settings()
 

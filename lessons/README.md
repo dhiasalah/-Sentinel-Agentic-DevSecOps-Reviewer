@@ -21,6 +21,8 @@ Concept deep-dives go in `lessons/concepts/`.
 
 ## Week 3 — GitHub App
 - [3.1 Create the GitHub App (minimal permissions) + app JWT](week03/01-github-app.md)
+- [3.2 Verify webhook signatures (`POST /webhooks/github`) + smee client](week03/02-webhook-signatures.md)
+- [3.3 Installation token (downscoped) + clone the PR's commit + scan it](week03/03-installation-token-and-clone.md)
 
 ## Concepts
 - [AI security from zero: what lesson 2.3 really does](concepts/ai-security-from-zero.md) ← start here

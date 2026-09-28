@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 3 — GitHub App
-- **Step:** 3.1 — Create the GitHub App (minimal permissions) + app JWT smoke test
-- **Lesson:** `lessons/week03/01-github-app.md`
+- **Step:** 3.3 — Installation token (downscoped) + clone the PR's `head_sha` into a temp folder + scan it
+- **Lesson:** `lessons/week03/03-installation-token-and-clone.md`
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
@@ -33,8 +33,8 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - **Deliverable:** CLI tool that scans a local repo and prints a triaged report ✅ **Week 2 complete**
 
 ### Week 3 — GitHub App
-- [ ] 3.1 Create GitHub App with minimal permissions (Contents R, Pull requests RW, event `pull_request`), playground repo, smee channel, key outside repo, app JWT
-- [ ] 3.2 Verify webhook signatures (`POST /webhooks/github`, HMAC SHA-256, smee client forwards locally)
+- [x] 3.1 Create GitHub App with minimal permissions (Contents R, Pull requests RW, event `pull_request`), playground repo, smee channel, key outside repo, app JWT — *done 2026-09-28 (app `sentinel-dhia`, 29 tests)*
+- [x] 3.2 Verify webhook signatures (`POST /webhooks/github`, HMAC SHA-256, smee client forwards locally) — *done 2026-09-28 (10 API tests; real PR #4 → 202, unsigned POST → 401)*
 - [ ] 3.3 Installation token + clone PR head on each event
 - [ ] 3.4 Add Redis queue + worker
 - **Deliverable:** opening a PR triggers a scan (visible in logs)
@@ -102,6 +102,8 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | 2026-09-27 | Step 2.3 Part A: `json_mode` in providers/router (AFC disabled), `TriagedIssue`, `triage.py` (schema-limited LLM output, random-tag untrusted wrapper, path-traversal-safe snippets, fail-closed id checks), 7 tests — `13 passed`. Real run: 9 findings → 4–5 issues. Asked for a plain-language security explanation → `lessons/concepts/triage-security-explained.md` | Structured output; output validation; spotlighting; least authority for the LLM; fail closed; path traversal | Two runs gave different groupings/severities (MD5 medium vs high; debug/0.0.0.0 merged vs split) even at temperature 0 → need evals (week 10). Pickle still missed (triage can't add findings, by design). `at:` repeats the same line (cosmetic). LLM `fix` text contains Markdown code blocks → render safely in PR comments (week 4) |
 | 2026-09-27 | User found lesson 2.3 too hard → wrote `concepts/ai-security-from-zero.md`. Step 2.3 Part B: `flask-injected` attack app, `policy.py` (severity floor from Semgrep, false positives kept + flagged, injection tripwire regex), `review_reasons` on `TriagedIssue`. Old sort test broke because the floor raised the fake AI's `low` → fixed the test (Claude edited it at user's request) — `22 passed`. Real attack: Gemini 503 → Groq; SQLi reported HIGH + "possible prompt injection" review flag | Prompt injection; red teaming; asymmetric risk (AI may escalate, humans de-escalate); test the guardrail, not the model; detection vs prevention; a new safety rule can legitimately break old tests | Only 1 attack × 1 run × 1 model so far → more attacks in the week 10 eval suite |
 | 2026-09-27 | Step 2.4: user found the CLI step uninteresting and asked Claude to implement it. Claude wrote `cli.py` (argparse `scan` sub-command, `--format text/json`, `--fail-on`, `-v`), `__main__.py`, `test_cli.py`, removed the old `__main__` block from `triage.py` — `28 passed`. Real run: 9 findings → 5 issues, exit 1; missing folder → exit 2 | Exit codes as an API for CI (0 clean / 1 issues / 2 tool error, a crash must never be 0); stdout vs stderr | Who sets `--fail-on` (repo owner, not PR author) → week 8 settings |
+| 2026-09-28 | Step 3.1: GitHub App `sentinel-dhia` (Contents R, PRs RW, `pull_request` event, own account only) on `sentinel-playground`, smee channel shows `pull_request`/`opened`, `.pem` in `~\.sentinel\` + `*.pem` ignored, `auth.py` (RS256 app JWT, iat-60s / exp+9min, httpx timeout), JWT test — `29 passed`; `GET /app` → `sentinel-dhia`. First live call 401 `"A JSON web token could not be decoded"` because `.env` kept the lesson's example `GITHUB_APP_ID=123456` → fixed | GitHub App vs PAT; two-level auth (app JWT = master key, installation token = room key); asymmetric signatures (GitHub keeps only the public key); webhooks = push; smee channels are public | Import order nit in `agents/sentinel/config.py` (`pathlib` between pydantic imports) |
+| 2026-09-28 | Step 3.2: `GITHUB_WEBHOOK_SECRET` (required `SecretStr`), `webhooks.verify_signature` (HMAC SHA-256 on raw body, `compare_digest`, empty secret fails closed), `POST /webhooks/github` (verify → parse, `ping`, only opened/synchronize/reopened, logs job, 202), 6 attack tests — `10 passed`. Live: smee-client → real PR #4 accepted (installation 165735765), unsigned POST → 401. First attempt showed nothing because smee-client wasn't running | Why smee (localhost unreachable from GitHub, outbound connection); installation = one "contract" of the app, `installation_id` picks which room key to mint; HMAC (symmetric) vs JWT (asymmetric); verify-then-parse; ack fast (10 s) + queue; replay risk on a public smee channel | Replay de-dup by `X-GitHub-Delivery` → 3.4. Rate-limiting `synchronize` spam (denial-of-wallet) → later |
 
 ---
 
