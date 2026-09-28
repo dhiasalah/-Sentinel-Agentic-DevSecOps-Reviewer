@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 3 — GitHub App
-- **Step:** 3.1 — not broken down yet (create GitHub App with minimal permissions)
-- **Lesson:** — (next: `lessons/week03/01-...`)
+- **Step:** 3.1 — Create the GitHub App (minimal permissions) + app JWT smoke test
+- **Lesson:** `lessons/week03/01-github-app.md`
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
@@ -33,10 +33,10 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - **Deliverable:** CLI tool that scans a local repo and prints a triaged report ✅ **Week 2 complete**
 
 ### Week 3 — GitHub App
-- [ ] Create GitHub App with minimal permissions
-- [ ] Verify webhook signatures
-- [ ] Clone PR diff on each event
-- [ ] Add Redis queue + worker
+- [ ] 3.1 Create GitHub App with minimal permissions (Contents R, Pull requests RW, event `pull_request`), playground repo, smee channel, key outside repo, app JWT
+- [ ] 3.2 Verify webhook signatures (`POST /webhooks/github`, HMAC SHA-256, smee client forwards locally)
+- [ ] 3.3 Installation token + clone PR head on each event
+- [ ] 3.4 Add Redis queue + worker
 - **Deliverable:** opening a PR triggers a scan (visible in logs)
 
 ### Week 4 — Posting results
@@ -108,6 +108,6 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 ## Blockers / questions to revisit
 - Repo is public on GitHub → be extra careful never to commit API keys (see step 1.5). `.gitignore` with `.env` added in step 1.1 ✅.
 - ~~`agents/sentinel/scanners/semgrep.py`: validate `target.is_dir()` before `docker run`~~ ✅ fixed in 2.2.
-- `agents/sentinel/config.py`: `groq_model` default is `"GROQ_MODEL=openai/gpt-oss-120b"` → must be `"openai/gpt-oss-120b"` (hidden today because `.env` overrides it).
-- LLM output to a Windows console can raise `UnicodeEncodeError` (cp1252). Handle when the CLI prints reports (2.4).
+- ~~`agents/sentinel/config.py`: `groq_model` default~~ ✅ fixed (commit 9cba37a).
+- ~~LLM output to a Windows console can raise `UnicodeEncodeError`~~ ✅ `cli.py` reconfigures stdout to UTF-8.
 - Commit messages: keep them descriptive (`fix(api)` alone says nothing in `git log`).
