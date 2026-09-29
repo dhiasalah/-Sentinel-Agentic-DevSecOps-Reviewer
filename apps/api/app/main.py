@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 from typing import Annotated
@@ -12,6 +13,8 @@ from app.webhooks import verify_signature
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sentinel.webhooks")
 PR_ACTIONS = {"opened", "synchronize", "reopened"}
+QUEUE = "sentinel:jobs"
+SEEN_TTL_SECONDS = 24 * 3600
 
 app = FastAPI(title="Sentinel API")
 redis_client = redis.Redis.from_url(settings.redis_url, socket_connect_timeout=2)
@@ -58,5 +61,16 @@ async def github_webhook(
         "head_sha": pr["head"]["sha"],
         "installation_id": payload["installation"]["id"],
     }
-    logger.info("accepted pull_request %s", job)
+    seen_key = "sentinel:seen:" + hashlib.sha256(body).hexdigest()
+    try:
+        if not redis_client.set(seen_key, 1, nx=True, ex=SEEN_TTL_SECONDS):
+            logger.info("duplicate delivery %s ignored", x_github_delivery)
+            return {"status": "duplicate"}
+        redis_client.lpush(QUEUE, json.dumps(job))
+    except redis.RedisError:
+        logger.exception("could not enqueue delivery %s", x_github_delivery)
+        raise HTTPException(status_code=503, detail="queue unavailable")
+
+    logger.info("queued pull_request %s", job)
+
     return JSONResponse(status_code=202, content={"status": "accepted", "pr": job["pr"]})
