@@ -11,3 +11,4 @@ class Settings(BaseSettings):
     groq_model: str = "openai/gpt-oss-120b"
     github_app_id: int | None = None
     github_private_key_path: Path | None = None
+    redis_url: str = "redis://localhost:6379/0"
