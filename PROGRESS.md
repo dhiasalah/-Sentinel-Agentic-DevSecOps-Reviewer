@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 3 — GitHub App
-- **Step:** 3.3 — Installation token (downscoped) + clone the PR's `head_sha` into a temp folder + scan it
-- **Lesson:** `lessons/week03/03-installation-token-and-clone.md`
+- **Step:** 3.4 — Redis queue + worker (webhook enqueues, worker runs `scan_pr`)
+- **Lesson:** `lessons/week03/04-redis-queue-and-worker.md` (to be written)
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
@@ -35,7 +35,7 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 ### Week 3 — GitHub App
 - [x] 3.1 Create GitHub App with minimal permissions (Contents R, Pull requests RW, event `pull_request`), playground repo, smee channel, key outside repo, app JWT — *done 2026-09-28 (app `sentinel-dhia`, 29 tests)*
 - [x] 3.2 Verify webhook signatures (`POST /webhooks/github`, HMAC SHA-256, smee client forwards locally) — *done 2026-09-28 (10 API tests; real PR #4 → 202, unsigned POST → 401)*
-- [ ] 3.3 Installation token + clone PR head on each event
+- [x] 3.3 Installation token (downscoped to 1 repo + `contents: read`) + clone PR `head_sha` into a temp folder + scan it — *done 2026-09-29 (`scan_pr` end-to-end: 11 findings → 6 issues, 35 tests)*
 - [ ] 3.4 Add Redis queue + worker
 - **Deliverable:** opening a PR triggers a scan (visible in logs)
 
@@ -104,6 +104,7 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | 2026-09-27 | Step 2.4: user found the CLI step uninteresting and asked Claude to implement it. Claude wrote `cli.py` (argparse `scan` sub-command, `--format text/json`, `--fail-on`, `-v`), `__main__.py`, `test_cli.py`, removed the old `__main__` block from `triage.py` — `28 passed`. Real run: 9 findings → 5 issues, exit 1; missing folder → exit 2 | Exit codes as an API for CI (0 clean / 1 issues / 2 tool error, a crash must never be 0); stdout vs stderr | Who sets `--fail-on` (repo owner, not PR author) → week 8 settings |
 | 2026-09-28 | Step 3.1: GitHub App `sentinel-dhia` (Contents R, PRs RW, `pull_request` event, own account only) on `sentinel-playground`, smee channel shows `pull_request`/`opened`, `.pem` in `~\.sentinel\` + `*.pem` ignored, `auth.py` (RS256 app JWT, iat-60s / exp+9min, httpx timeout), JWT test — `29 passed`; `GET /app` → `sentinel-dhia`. First live call 401 `"A JSON web token could not be decoded"` because `.env` kept the lesson's example `GITHUB_APP_ID=123456` → fixed | GitHub App vs PAT; two-level auth (app JWT = master key, installation token = room key); asymmetric signatures (GitHub keeps only the public key); webhooks = push; smee channels are public | Import order nit in `agents/sentinel/config.py` (`pathlib` between pydantic imports) |
 | 2026-09-28 | Step 3.2: `GITHUB_WEBHOOK_SECRET` (required `SecretStr`), `webhooks.verify_signature` (HMAC SHA-256 on raw body, `compare_digest`, empty secret fails closed), `POST /webhooks/github` (verify → parse, `ping`, only opened/synchronize/reopened, logs job, 202), 6 attack tests — `10 passed`. Live: smee-client → real PR #4 accepted (installation 165735765), unsigned POST → 401. First attempt showed nothing because smee-client wasn't running | Why smee (localhost unreachable from GitHub, outbound connection); installation = one "contract" of the app, `installation_id` picks which room key to mint; HMAC (symmetric) vs JWT (asymmetric); verify-then-parse; ack fast (10 s) + queue; replay risk on a public smee channel | Replay de-dup by `X-GitHub-Delivery` → 3.4. Rate-limiting `synchronize` spam (denial-of-wallet) → later |
+| 2026-09-29 | Step 3.3: `get_installation_token` (downscoped: 1 repo, `contents: read`), `checkout.py` (repo/sha regex validation, `init`+`fetch --depth 1 <sha>`+detached checkout, `core.symlinks false`, token via `GIT_CONFIG_*` extraHeader not URL, temp dir always removed), `scan_pr.py` glues token → checkout → semgrep → triage — `35 passed`. First live run: 422 `"The permissions requested are not granted to this installation."` — installation only had metadata/pull_requests/repository_hooks (Contents R from 3.1 was never actually saved/accepted) → user added Contents: Read-only + accepted on the installation → 201, token scoped to `sentinel-playground` with `contents`+`metadata` read, expires 1h. Real scan: 6 issues, Gemini 503 → Groq, injection app still flagged | Why installation token (JWT = identity only; installation = consent; short-lived, scoped vs PAT blast radius); downscoping can only shrink; permission changes need the installation owner to **accept**; 401/404/422 tell you which auth layer failed; token out of URLs/`.git/config` | `raise_for_status()` hides GitHub's error body → replace with `RuntimeError(f"... {resp.status_code}: {resp.text}")` in `auth.py`. Separate write-scoped token for PR comments (week 4)? |
 
 ---
 
@@ -113,3 +114,4 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - ~~`agents/sentinel/config.py`: `groq_model` default~~ ✅ fixed (commit 9cba37a).
 - ~~LLM output to a Windows console can raise `UnicodeEncodeError`~~ ✅ `cli.py` reconfigures stdout to UTF-8.
 - Commit messages: keep them descriptive (`fix(api)` alone says nothing in `git log`).
+- `auth.py`: `raise_for_status()` on the token call hides GitHub's explanation (cost us a debug round on the 422) → raise with `resp.text`.

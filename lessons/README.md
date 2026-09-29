@@ -27,3 +27,4 @@ Concept deep-dives go in `lessons/concepts/`.
 ## Concepts
 - [AI security from zero: what lesson 2.3 really does](concepts/ai-security-from-zero.md) ← start here
 - [Triage security explained simply (2.3)](concepts/triage-security-explained.md)
+- [GitHub App + webhooks explained from zero (3.1 + 3.2)](concepts/github-app-and-webhooks-explained.md)

@@ -26,3 +26,13 @@ def get_app_info(app_jwt: str) -> dict:
     )
     resp.raise_for_status()
     return resp.json()
+
+def get_installation_token(app_jwt: str, installation_id: int, repo_name: str) -> str:
+    resp = httpx.post(
+        f"{GITHUB_API}/app/installations/{installation_id}/access_tokens",
+        headers={**HEADERS, "Authorization": f"Bearer {app_jwt}"},
+        json={"repositories": [repo_name], "permissions": {"contents": "read"}},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json()["token"]
