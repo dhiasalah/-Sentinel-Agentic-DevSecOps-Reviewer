@@ -1,10 +1,12 @@
 # Week 3 · Step 3.3 — Installation token + clone the PR's code + scan it
 
 ## 🗺️ In plain words: what we're doing today
-Your API now knows *"PR #4 was opened in `sentinel-playground`, commit `eb4bc40…`, contract `165735765`"*. But knowing isn't
+
+Your API now knows _"PR #4 was opened in `sentinel-playground`, commit `eb4bc40…`, contract `165735765`"_. But knowing isn't
 seeing: Sentinel still has no copy of the code. Today we write the three moves the worker will make for every PR:
+
 1. **Get a room key.** Show the master key (app JWT) and ask GitHub for a 1-hour key for contract `165735765`, restricted to
-   *read code* on *this one repo*.
+   _read code_ on _this one repo_.
 2. **Copy the code.** Download **exactly** commit `eb4bc40…` into a fresh temporary folder.
 3. **Scan and clean up.** Run your week 2 pipeline (Semgrep + LLM triage) on that folder, then delete the folder.
 
@@ -12,11 +14,13 @@ seeing: Sentinel still has no copy of the code. Today we write the three moves t
 then the same triaged report as `python -m sentinel scan`, then `removed C:\…\Temp\sentinel-…`. The code came from GitHub, not from your disk.
 
 ## 🎯 Goal
+
 A function `scan_pr(repo, head_sha, installation_id, settings)` that goes from a webhook's facts to a list of `TriagedIssue`.
 The Redis worker in 3.4 will call exactly this function.
 
 ## 🧰 Tools in this step
-- **Installation access token**: the *room key* from 3.1. `POST /app/installations/{id}/access_tokens` with your JWT returns a
+
+- **Installation access token**: the _room key_ from 3.1. `POST /app/installations/{id}/access_tokens` with your JWT returns a
   `ghs_…` token valid 1 hour. You can **downscope** it: ask for fewer repos and fewer permissions than the installation has.
   [Docs](https://docs.github.com/en/rest/apps/apps#create-an-installation-access-token-for-an-app)
 - **git plumbing** (`init` / `fetch <sha>` / `checkout`): instead of `git clone` (all branches, all history), we fetch **one commit**,
@@ -42,7 +46,9 @@ job {repo, head_sha, installation_id}           (from 3.2 webhook; from Redis in
 ## 🧩 Code, piece by piece (in `agents/`)
 
 ### 1. Ask for a room key
+
 **Where:** `agents/sentinel/github/auth.py`, add at the bottom
+
 ```python
 def get_installation_token(app_jwt: str, installation_id: int, repo_name: str) -> str:
     resp = httpx.post(
@@ -54,13 +60,16 @@ def get_installation_token(app_jwt: str, installation_id: int, repo_name: str) -
     resp.raise_for_status()
     return resp.json()["token"]
 ```
-Your app *has* `Pull requests: write` on the installation, but cloning doesn't need it. So we ask for a token that can **only read
+
+Your app _has_ `Pull requests: write` on the installation, but cloning doesn't need it. So we ask for a token that can **only read
 code of this one repo**. If this token leaks (e.g. from an error message in the clone step), it can't post comments or touch another repo.
 This is **downscoping**: least privilege per task, not just per app. In week 4 the "post comment" step will ask for its own token with
 `pull_requests: write` only. `repo_name` is the short name (`sentinel-playground`), not `owner/name`.
 
 ### 2. The checkout
+
 **Where:** new file `agents/sentinel/github/checkout.py`
+
 ```python
 import base64
 import logging
@@ -118,7 +127,9 @@ def checkout_pr_head(repo: str, head_sha: str, token: str) -> Iterator[Path]:
         shutil.rmtree(workdir, onexc=_force_remove)
         logger.info("removed %s", workdir)
 ```
+
 Line by line, the parts that matter:
+
 - **Validate before use.** `repo` and `head_sha` come from a webhook. Signed, yes, but the PR author chose parts of it. A SHA is exactly
   40 hex chars, so anything else is rejected. That rules out argument injection like a "sha" of `--upload-pack=calc.exe`.
 - **Why the SHA and not the branch name.** A branch can move between "webhook received" and "clone started" (the author pushes again).
@@ -136,7 +147,9 @@ Line by line, the parts that matter:
   `rmtree` would fail, so `_force_remove` clears the flag and retries (`onexc` needs Python ≥ 3.12, you have 3.13).
 
 ### 3. The whole pipeline in one function
+
 **Where:** new file `agents/sentinel/github/scan_pr.py`
+
 ```python
 from sentinel.config import Settings
 from sentinel.github.auth import get_installation_token, load_private_key, make_app_jwt
@@ -156,13 +169,16 @@ def scan_pr(repo: str, head_sha: str, installation_id: int, settings: Settings) 
         findings = parse_findings(run_semgrep(path))
         return triage(findings, path, build_router(settings))
 ```
+
 Nothing new in the scanning part: it's your week 2 pipeline, just pointed at a temp folder instead of a local path.
 The `return` sits **inside** the `with`: triage reads snippets from the files, so the folder must still exist. It's deleted right after.
 The token lives only in a local variable: never logged, never stored, gone in 1 hour anyway.
 
 ### 4. Tests (no network, no git)
+
 **Where:** `agents/tests/test_github_auth.py`. Add `import httpx` at the top, add `get_installation_token` to the
 `from sentinel.github.auth import ...` line, then add at the bottom:
+
 ```python
 def test_installation_token_is_downscoped(monkeypatch):
     calls = {}
@@ -185,7 +201,9 @@ def test_installation_token_is_downscoped(monkeypatch):
     assert calls["url"].endswith("/app/installations/99/access_tokens")
     assert calls["json"] == {"repositories": ["sentinel-playground"], "permissions": {"contents": "read"}}
 ```
+
 **Where:** new file `agents/tests/test_checkout.py`
+
 ```python
 import base64
 
@@ -214,18 +232,23 @@ def test_token_goes_in_a_github_only_header():
     assert env["GIT_CONFIG_VALUE_0"] == "Authorization: Basic " + base64.b64encode(b"x-access-token:ghs_fake").decode()
     assert env["GIT_TERMINAL_PROMPT"] == "0"
 ```
+
 The first test tries four hostile inputs and checks that **none** of them ever reaches git (validation happens before `mkdtemp`, so
 no folder is even created). `parametrize` = one test function, four cases, each reported separately. The second test pins
 the token plumbing so a future refactor can't quietly move it back into the URL.
 
 ## ✅ Check it works
+
 1. Tests (from `agents/`, venv active):
+
 ```powershell
 cd agents; .\.venv\Scripts\Activate.ps1; python -m pytest -q
 ```
+
 Expected: `34 passed` (29 old + 1 token + 4 bad-input cases + 1 env).
 
 2. Real run on your PR #4. Docker Desktop must be running (Semgrep). Paste into PowerShell from `agents/`:
+
 ```powershell
 @'
 import logging, sys
@@ -239,7 +262,9 @@ issues = scan_pr("dhiasalah/sentinel-playground", "eb4bc404a1b7363d84a7947b06469
 print(render_text(issues, sum(len(i.findings) for i in issues)))
 '@ | python -
 ```
+
 Expected (details vary by LLM run):
+
 ```
 INFO sentinel.github.checkout: checked out dhiasalah/sentinel-playground@eb4bc40 into C:\Users\USER\AppData\Local\Temp\sentinel-ab12cd
 INFO httpx: HTTP Request: POST https://generativelanguage.googleapis.com/... "HTTP/1.1 200 OK"
@@ -249,21 +274,25 @@ INFO sentinel.github.checkout: removed C:\Users\USER\AppData\Local\Temp\sentinel
 ...
 9 scanner findings -> 5 issues
 ```
+
 Then check the folder is really gone: `Test-Path C:\Users\USER\AppData\Local\Temp\sentinel-ab12cd` → `False`.
 
 If you see:
+
 - `401` on `access_tokens` → wrong App ID / key (like 3.1).
 - `422 ... repositories` → the app isn't installed on that repo, or the repo name is misspelled.
 - `CalledProcessError ... fetch` → the SHA doesn't exist in that repo (typo, or you force-pushed since).
 - `0 findings` → the vulnerable Flask app isn't in that PR's commit. Check the playground repo has it.
 
 ## 📚 Key concepts
+
 - **Downscoped credentials.** One app, but each task asks for the smallest token it needs. Blast radius per step, not per app.
 - **Immutable references.** A SHA can't change, a branch can. Security decisions should be tied to immutable IDs.
 - **Validate at the boundary.** Data from outside (even signed) gets checked against a strict pattern before it touches a shell, a path or git.
 - **Ephemeral workspaces.** Untrusted code gets a fresh folder per job, deleted after. Nothing leaks from one PR to the next.
 
 ## 🔐 Security note
+
 - **We read PR code, we never run it.** No `pip install`, no running tests, no `setup.py`. Running the author's code with your token
   in the environment = handing them the token. This is the classic `pull_request_target` mistake in GitHub Actions. When Sentinel
   needs to run anything from a PR (week 6 fixer), it happens in a sandbox with no network and no secrets.
@@ -275,5 +304,6 @@ If you see:
   for 55 minutes to save API calls, and when would that trade-off be worth it?
 
 ## ➡️ Next step
+
 3.4: the webhook pushes the job into Redis (with replay de-duplication on `X-GitHub-Delivery`), and a worker process pops it and calls `scan_pr`.
 Tell Claude "I finished step 3.3, please review".

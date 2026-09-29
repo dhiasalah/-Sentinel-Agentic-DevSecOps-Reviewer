@@ -1,8 +1,8 @@
 import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-
-from sentinel.github.auth import make_app_jwt
+import httpx
+from sentinel.github.auth import make_app_jwt,get_installation_token
 
 
 def test_app_jwt_is_signed_and_short_lived():
@@ -20,3 +20,24 @@ def test_app_jwt_is_signed_and_short_lived():
 
     assert claims == {"iat": 999_940, "exp": 1_000_540, "iss": "42"}
     assert claims["exp"] - claims["iat"] <= 600
+
+def test_installation_token_is_downscoped(monkeypatch):
+    calls = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"token": "ghs_fake"}
+
+    def fake_post(url, **kwargs):
+        calls["url"] = url
+        calls.update(kwargs)
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    assert get_installation_token("jwt", 99, "sentinel-playground") == "ghs_fake"
+    assert calls["url"].endswith("/app/installations/99/access_tokens")
+    assert calls["json"] == {"repositories": ["sentinel-playground"], "permissions": {"contents": "read"}}
