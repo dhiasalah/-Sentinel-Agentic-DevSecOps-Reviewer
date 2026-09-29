@@ -23,8 +23,10 @@ Concept deep-dives go in `lessons/concepts/`.
 - [3.1 Create the GitHub App (minimal permissions) + app JWT](week03/01-github-app.md)
 - [3.2 Verify webhook signatures (`POST /webhooks/github`) + smee client](week03/02-webhook-signatures.md)
 - [3.3 Installation token (downscoped) + clone the PR's commit + scan it](week03/03-installation-token-and-clone.md)
+- [3.4 Redis queue + worker (replay-safe, no lost jobs)](week03/04-redis-queue-and-worker.md)
 
 ## Concepts
 - [AI security from zero: what lesson 2.3 really does](concepts/ai-security-from-zero.md) ← start here
 - [Triage security explained simply (2.3)](concepts/triage-security-explained.md)
 - [GitHub App + webhooks explained from zero (3.1 + 3.2)](concepts/github-app-and-webhooks-explained.md)
+- [Week 3: what to remember + real examples of Redis/workers](concepts/week03-what-to-remember.md)
