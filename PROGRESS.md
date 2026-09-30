@@ -4,9 +4,9 @@
 > and updates it when a step is verified. You can edit it too.
 
 ## Current position
-- **Week:** 4 — Posting results
-- **Step:** 4.3 — Record the first demo GIF
-- **Lesson:** `lessons/week04/04-demo-gif.md` (to be written)
+- **Week:** 5 — Multi-agent with LangGraph
+- **Step:** 5.1 — (to be broken into steps) LangGraph planner → parallel scanner agents
+- **Lesson:** `lessons/week05/01-...` (to be written)
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
@@ -42,8 +42,8 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 ### Week 4 — Posting results
 - [x] 4.1 Worker posts a formatted review comment on the PR (escaped Markdown, upsert by bot login + marker, separate `pull_requests: write` token) — *done 2026-09-30 (PR #7: created @ `566c466`, updated in place @ `6161737`, 52 tests)*
 - [x] 4.2 Build a benchmark repo with 10–15 planted vulnerabilities — *done 2026-09-30 (Part A: 15 vulns + 4 decoys; Part B: `evals/score.py` → 7/15 found, 6/7 right CWE, 5/7 severity ok, 0/4 decoys; 8 grader + 58 agent tests)*
-- [ ] 4.3 Record first demo GIF
-- **Deliverable:** working bot on real PRs
+- [x] 4.3 Record first demo GIF — *done 2026-09-30 (`docs/demo/sentinel-pr-comment.gif`, 36 s, 5.3 MB, redaction-checked frame by frame; in README)*
+- **Deliverable:** working bot on real PRs ✅ **Week 4 complete**
 
 ### Week 5 — Multi-agent with LangGraph
 - [ ] Move logic into LangGraph: planner → parallel scanner agents
@@ -109,6 +109,7 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | 2026-09-30 | Step 4.1: `comment.py` (`md_escape`: collapse whitespace, zero-width space breaks auto-links/mentions/`#refs`, backslash-escape MD/HTML, length caps; `render_comment` with invisible marker; `upsert_comment`; `post_report` mints a separate `pull_requests: write` token after the scan), `raise_for_github_error` shows GitHub's error body, worker posts the report — `52 passed`. Live bug: worker crashed after 5 s with `redis TimeoutError` because redis-py 8.1 added a default `socket_timeout=5`, equal to the `BLMOVE` wait → `socket_timeout=30` + pinned `redis==8.1.0` (fixed by Claude at user's request). Live: PR #7 comment created @ `566c466`, then the same comment updated @ `6161737` (still 1 comment). Style fixes + `get_app_info` error body committed/pushed by Claude at user's request (`d2e61f4`) | Improper output handling (OWASP LLM05); escape, don't filter; upsert = idempotency for an at-least-once queue; one token per capability (read for the scan, write for the comment); trust needs author **and** marker; socket timeout must exceed the blocking-command timeout; unpinned dependencies change behaviour silently | Stale report race with 2+ workers (compare `head_sha` with the PR's current head before posting) → week 9. Other requirements still unpinned. `get_app_info` called on every job (cache later) |
 | 2026-09-30 | Step 4.2 Part A: `evals/benchmark/target/` (6 `.py` files, Dockerfile, requirements) with 15 planted vulns + 4 decoys, `expected.json` answer key outside the target; all line numbers verified against the key. Raw Semgrep (no LLM) on it: 11 findings → **7/15 vulns** (V03, V05, V08, V09, V10, V11, V13), **0/4 decoys** flagged. Full scan with triage (Gemini 504 → Groq): 11 findings → 8 issues, same 7/15, 0/4 decoys, no real vuln dismissed | Ground truth; recall vs false-positive rate; data contamination (no hints in code, key outside the scanned folder); decoys = true negatives; match by file + line range, not CWE (Semgrep tagged the SSTI as CWE-79 XSS) | Semgrep missed V01 SQLi (taint rules need a source like `request`; here it's a plain function arg), V02, V06, V07 pickle (again), V12. `0.0.0.0` finding on web.py:24 is neither a vuln nor a decoy → Part B needs an "unplanned" bucket. Rule for LLM-dismissed real vulns still open. Triage **misdiagnosed V10** (SSTI → "XSS", MEDIUM; real impact is RCE) and scored debug=True MEDIUM (HIGH in 3.4) → line match alone over-credits; severity drift again |
 | 2026-09-30 | Step 4.2 Part B: user found it uninteresting and asked Claude to implement it. Claude wrote `evals/score.py` (stdlib only, no `sentinel` import; match by file + line range; right-CWE and severity-floor quality checks; dismissed / decoys / unplanned counters; misses grouped by scanner), `evals/test_score.py` (7 rule tests + 1 answer-key integrity test), `expected.json` v2 (`cwes` list + `severity` floor), `scan -o` writes UTF-8 (old `agents/report.json` was UTF-16 from PowerShell `>` → removed, `evals/results/` ignored). First real run crashed: Gemini `499 CANCELLED` was not treated as transient → no Groq fallback, exit 2 (no stale report written) → 408/499 added to transient codes + 6 provider tests. Real score: **7/15 (47%), right CWE 6/7, severity ok 5/7, 0 dismissed, 0/4 decoys** | Evaluation harness; detection vs diagnosis quality; accept every correct answer (CWE tree); test the answer key; judge independence; one run = one sample; shell redirection re-encodes data; unknown error codes must be classified (fallback only works for errors you recognise) | Two bugs on one line can't be told apart (keep one per line). Goodhart: don't tune prompts on this benchmark only → hidden second benchmark in week 10. Run N times for severity spread (week 10) |
+| 2026-09-30 | Step 4.3: user recorded the demo (PR #9 opened → worker scans → comment with 8 issues incl. the prompt-injection review flag) and asked Claude to add + push it. Claude checked frames (every 32nd + scene changes): no `.env` contents, tokens or smee URL visible; renamed to `docs/demo/sentinel-pr-comment.gif`, added to README with descriptive alt text | Show, don't claim; demo ≠ benchmark; binary files stay in git history forever; redaction before publishing | GIF is full-screen 1903×931 and 5.3 MB (target was 1280×720, < 5 MB) → re-record smaller for week 10 + MP4 for LinkedIn. Demo PR #9 scans the whole playground (8 issues) rather than a 2-bug diff: Sentinel scans the repo at `head_sha`, not only changed files → diff-only scanning is a later improvement |
 
 ---
 
