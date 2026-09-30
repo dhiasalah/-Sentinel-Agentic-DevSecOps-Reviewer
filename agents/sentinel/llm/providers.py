@@ -40,7 +40,8 @@ class GeminiProvider:
             )
 
         except genai_errors.APIError as e:
-            if e.code == 429 or e.code >= 500:
+            # 408 timeout, 429 rate limit, 499 CANCELLED (Google gives up server-side), 5xx outage
+            if e.code in (408, 429, 499) or e.code >= 500:
                 raise ProviderUnavailable(f"gemini returned {e.code}") from e
             raise
         except httpx.TransportError as e:
