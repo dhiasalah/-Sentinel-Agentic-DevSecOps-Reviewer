@@ -1,6 +1,9 @@
-import pytest
+from types import SimpleNamespace
 
-from sentinel.llm.providers import ProviderUnavailable
+import pytest
+from google.genai import errors as genai_errors
+
+from sentinel.llm.providers import GeminiProvider, ProviderUnavailable
 from sentinel.llm.router import AllProvidersFailed, LLMRouter
 
 
@@ -49,3 +52,26 @@ def test_raises_when_all_providers_fail():
     ]
     with pytest.raises(AllProvidersFailed):
         LLMRouter(providers).complete("sys", "user")
+
+
+class RaisingModels:
+    def __init__(self, code):
+        self.code = code
+
+    def generate_content(self, **kwargs):
+        raise genai_errors.APIError(self.code, {"error": {"code": self.code, "message": "m", "status": "S"}})
+
+
+@pytest.mark.parametrize("code", [408, 429, 499, 503, 504])
+def test_gemini_transient_errors_trigger_fallback(code):
+    provider = GeminiProvider(api_key="test", model="m")
+    provider._client = SimpleNamespace(models=RaisingModels(code))
+    with pytest.raises(ProviderUnavailable):
+        provider.complete("sys", "user")
+
+
+def test_gemini_client_errors_are_not_hidden():
+    provider = GeminiProvider(api_key="test", model="m")
+    provider._client = SimpleNamespace(models=RaisingModels(400))
+    with pytest.raises(genai_errors.APIError):
+        provider.complete("sys", "user")
