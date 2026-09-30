@@ -25,6 +25,9 @@ Concept deep-dives go in `lessons/concepts/`.
 - [3.3 Installation token (downscoped) + clone the PR's commit + scan it](week03/03-installation-token-and-clone.md)
 - [3.4 Redis queue + worker (replay-safe, no lost jobs)](week03/04-redis-queue-and-worker.md)
 
+## Week 4 — Posting results
+- [4.1 Worker posts the report as a PR comment (safe Markdown, upsert, write-only token)](week04/01-pr-comment.md)
+
 ## Concepts
 - [AI security from zero: what lesson 2.3 really does](concepts/ai-security-from-zero.md) ← start here
 - [Triage security explained simply (2.3)](concepts/triage-security-explained.md)

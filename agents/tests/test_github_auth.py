@@ -24,20 +24,13 @@ def test_app_jwt_is_signed_and_short_lived():
 def test_installation_token_is_downscoped(monkeypatch):
     calls = {}
 
-    class FakeResponse:
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return {"token": "ghs_fake"}
-
     def fake_post(url, **kwargs):
         calls["url"] = url
         calls.update(kwargs)
-        return FakeResponse()
+        return httpx.Response(201, json={"token": "ghs_fake"}, request=httpx.Request("POST", url))
 
     monkeypatch.setattr(httpx, "post", fake_post)
 
-    assert get_installation_token("jwt", 99, "sentinel-playground") == "ghs_fake"
+    assert get_installation_token("jwt", 99, "sentinel-playground", {"contents": "read"}) == "ghs_fake"
     assert calls["url"].endswith("/app/installations/99/access_tokens")
     assert calls["json"] == {"repositories": ["sentinel-playground"], "permissions": {"contents": "read"}}
