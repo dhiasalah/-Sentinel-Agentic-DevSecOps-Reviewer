@@ -368,6 +368,12 @@ Expected: `52 passed`.
 If you get `RuntimeError: GitHub POST /app/installations/…/access_tokens failed (422): … permissions requested are not granted`,
 step 4 wasn't accepted. Thanks to step 5, you can now read that directly in the error.
 
+**Troubleshooting: worker crashes after ~5 s with `redis.exceptions.TimeoutError: Timeout reading from socket`.**
+redis-py 8 added a default `socket_timeout` of 5 s, the same as our `BLMOVE` wait of 5 s. On an empty queue, the client gives up
+before Redis can answer "no job". Fix (in `worker.py` `main()`): `redis.Redis.from_url(settings.redis_url, socket_timeout=30)`.
+Rule: **socket timeout > blocking-command timeout**. Keep it finite (not `None`), so a dead Redis crashes loudly instead of hanging.
+Also pin `redis==8.1.0` in `requirements.txt`, because an unpinned library changed our behaviour without any change to our code.
+
 **Worth thinking about:** you push commit A, then commit B ten seconds later. With one worker the jobs run in order and B's report
 wins. With two workers (week 9), A's scan could finish **after** B's and overwrite the comment with an **old** report.
 How would you prevent that? (Hint: before posting, compare `head_sha` with the PR's current head.)

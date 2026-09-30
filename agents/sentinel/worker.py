@@ -56,7 +56,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     sys.stderr.reconfigure(encoding="utf-8")
     settings = Settings()
-    r = redis.Redis.from_url(settings.redis_url)
+    r = redis.Redis.from_url(settings.redis_url, socket_timeout=30)
     r.ping()
     if moved := requeue_stale(r):
         logger.warning("requeued %d unfinished job(s) from a previous run", moved)
