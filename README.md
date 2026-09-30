@@ -4,6 +4,8 @@ Sentinel is a GitHub App that reviews pull requests for security issues. When a 
 checks out the PR's code, scans it with Semgrep, has an LLM group and explain the findings, and posts a
 security report as a comment on the PR.
 
+![Sentinel reviewing a pull request: the PR is opened, the worker scans it, and the bot posts a security report comment with severities, explanations and a prompt-injection review flag](docs/demo/sentinel-pr-comment.gif)
+
 The core design rule: **scanners detect, the AI reasons.** Semgrep decides *what* is wrong. The LLM only
 groups findings, explains them and suggests fixes, under strict guardrails.
 
