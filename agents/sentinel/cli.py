@@ -23,6 +23,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     scan.add_argument("--format", choices=["text", "json"], default="text", help="text for humans, json for robots")
     scan.add_argument("--fail-on", choices=SEVERITY_ORDER, default="high",
                       help="exit code 1 if an issue is at least this severe (default: high)")
+    scan.add_argument("-o", "--output", type=Path, help="also write the JSON report to this file (UTF-8)")
     scan.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
     return parser.parse_args(argv)
 
@@ -68,5 +69,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.verbose:
             traceback.print_exc()
         return EXIT_ERROR
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(render_json(issues), encoding="utf-8")
     print(render_json(issues) if args.format == "json" else render_text(issues, len(findings)))
     return exit_code(issues, args.fail_on)

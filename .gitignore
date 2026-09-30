@@ -8,3 +8,6 @@ __pycache__/
 .env.*
 !.env.example
 *.pem
+
+# Benchmark run outputs (regenerate, never commit)
+evals/results/
