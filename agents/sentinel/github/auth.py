@@ -27,12 +27,18 @@ def get_app_info(app_jwt: str) -> dict:
     resp.raise_for_status()
     return resp.json()
 
-def get_installation_token(app_jwt: str, installation_id: int, repo_name: str) -> str:
+def raise_for_github_error(resp: httpx.Response) -> None:
+    if resp.is_error:
+        raise RuntimeError(f"GitHub {resp.request.method} {resp.request.url.path} failed ({resp.status_code}): {resp.text}")
+
+
+def get_installation_token(app_jwt: str, installation_id: int, repo_name: str, permissions: dict[str, str]) -> str:
     resp = httpx.post(
         f"{GITHUB_API}/app/installations/{installation_id}/access_tokens",
         headers={**HEADERS, "Authorization": f"Bearer {app_jwt}"},
-        json={"repositories": [repo_name], "permissions": {"contents": "read"}},
+        json={"repositories": [repo_name], "permissions": permissions},
         timeout=10,
     )
-    resp.raise_for_status()
+    raise_for_github_error(resp)
     return resp.json()["token"]
+

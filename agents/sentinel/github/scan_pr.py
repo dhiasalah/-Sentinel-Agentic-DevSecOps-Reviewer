@@ -11,7 +11,7 @@ def scan_pr(repo: str, head_sha: str, installation_id: int, settings: Settings) 
     if settings.github_app_id is None or settings.github_private_key_path is None:
         raise RuntimeError("GITHUB_APP_ID and GITHUB_PRIVATE_KEY_PATH must be set")
     app_jwt = make_app_jwt(settings.github_app_id, load_private_key(settings.github_private_key_path))
-    token = get_installation_token(app_jwt, installation_id, repo.split("/")[1])
+    token = get_installation_token(app_jwt, installation_id, repo.split("/")[1], {"contents": "read"})
     with checkout_pr_head(repo, head_sha, token) as path:
         findings = parse_findings(run_semgrep(path))
         return triage(findings, path, build_router(settings))

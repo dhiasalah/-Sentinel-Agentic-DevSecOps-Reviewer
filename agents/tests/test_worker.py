@@ -13,6 +13,13 @@ JOB = json.dumps({"delivery": "d-1", "repo": "o/r", "pr": 7, "head_sha": SHA, "i
 def r():
     return fakeredis.FakeRedis()
 
+@pytest.fixture(autouse=True)
+def posted(monkeypatch):
+    calls = []
+    monkeypatch.setattr(worker, "post_report", lambda *args: calls.append(args[:2]) or "created")
+    return calls
+
+
 
 def lengths(r):
     return r.llen(worker.QUEUE), r.llen(worker.PROCESSING), r.llen(worker.DEAD)
@@ -57,3 +64,19 @@ def test_unfinished_jobs_are_requeued_on_start(r):
     r.lpush(worker.PROCESSING, JOB)
     assert worker.requeue_stale(r) == 1
     assert lengths(r) == (1, 0, 0)
+
+
+def test_report_is_posted_after_scan(r, monkeypatch, posted):
+    monkeypatch.setattr(worker, "scan_pr", lambda *a: [])
+    r.lpush(worker.QUEUE, JOB)
+    worker.process_one(r, settings=None, timeout=1)
+    assert posted == [("o/r", 7)]
+
+
+def test_failed_scan_posts_nothing(r, monkeypatch, posted):
+    def boom(*args):
+        raise RuntimeError("semgrep crashed")
+    monkeypatch.setattr(worker, "scan_pr", boom)
+    r.lpush(worker.QUEUE, JOB)
+    worker.process_one(r, settings=None, timeout=1)
+    assert posted == []
