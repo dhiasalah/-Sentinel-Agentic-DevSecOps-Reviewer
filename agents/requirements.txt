@@ -4,4 +4,4 @@ google-genai
 groq
 PyJWT[crypto]
 httpx
-redis
+redis==8.1.0
