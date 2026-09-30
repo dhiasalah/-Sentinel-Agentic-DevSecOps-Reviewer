@@ -29,6 +29,7 @@ Concept deep-dives go in `lessons/concepts/`.
 - [4.1 Worker posts the report as a PR comment (safe Markdown, upsert, write-only token)](week04/01-pr-comment.md)
 - [4.2 Benchmark: 15 planted vulns + 4 decoys + answer key (Part A)](week04/02-benchmark-repo.md)
 - [4.2 Benchmark grader: detection, right CWE, severity, decoys (Part B)](week04/03-benchmark-scorer.md)
+- [4.3 Record the first demo GIF (storyboard, trimming, redaction checklist)](week04/04-demo-gif.md)
 
 ## Concepts
 - [AI security from zero: what lesson 2.3 really does](concepts/ai-security-from-zero.md) ← start here
