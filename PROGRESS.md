@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 4 — Posting results
-- **Step:** 4.1 — Worker posts a formatted review comment on the PR
-- **Lesson:** `lessons/week04/01-pr-comment.md` (to be written)
+- **Step:** 4.2 — Benchmark repo with 10–15 planted vulnerabilities
+- **Lesson:** `lessons/week04/02-benchmark-repo.md` (to be written)
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
@@ -40,8 +40,8 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - **Deliverable:** opening a PR triggers a scan (visible in logs) ✅ **Week 3 complete**
 
 ### Week 4 — Posting results
-- [ ] Worker posts a formatted review comment on the PR
-- [ ] Build a benchmark repo with 10–15 planted vulnerabilities
+- [x] 4.1 Worker posts a formatted review comment on the PR (escaped Markdown, upsert by bot login + marker, separate `pull_requests: write` token) — *done 2026-09-30 (PR #7: created @ `566c466`, updated in place @ `6161737`, 52 tests)*
+- [ ] 4.2 Build a benchmark repo with 10–15 planted vulnerabilities
 - [ ] Record first demo GIF
 - **Deliverable:** working bot on real PRs
 
@@ -106,6 +106,7 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | 2026-09-28 | Step 3.2: `GITHUB_WEBHOOK_SECRET` (required `SecretStr`), `webhooks.verify_signature` (HMAC SHA-256 on raw body, `compare_digest`, empty secret fails closed), `POST /webhooks/github` (verify → parse, `ping`, only opened/synchronize/reopened, logs job, 202), 6 attack tests — `10 passed`. Live: smee-client → real PR #4 accepted (installation 165735765), unsigned POST → 401. First attempt showed nothing because smee-client wasn't running | Why smee (localhost unreachable from GitHub, outbound connection); installation = one "contract" of the app, `installation_id` picks which room key to mint; HMAC (symmetric) vs JWT (asymmetric); verify-then-parse; ack fast (10 s) + queue; replay risk on a public smee channel | Replay de-dup by `X-GitHub-Delivery` → 3.4. Rate-limiting `synchronize` spam (denial-of-wallet) → later |
 | 2026-09-29 | Step 3.3: `get_installation_token` (downscoped: 1 repo, `contents: read`), `checkout.py` (repo/sha regex validation, `init`+`fetch --depth 1 <sha>`+detached checkout, `core.symlinks false`, token via `GIT_CONFIG_*` extraHeader not URL, temp dir always removed), `scan_pr.py` glues token → checkout → semgrep → triage — `35 passed`. First live run: 422 `"The permissions requested are not granted to this installation."` — installation only had metadata/pull_requests/repository_hooks (Contents R from 3.1 was never actually saved/accepted) → user added Contents: Read-only + accepted on the installation → 201, token scoped to `sentinel-playground` with `contents`+`metadata` read, expires 1h. Real scan: 6 issues, Gemini 503 → Groq, injection app still flagged | Why installation token (JWT = identity only; installation = consent; short-lived, scoped vs PAT blast radius); downscoping can only shrink; permission changes need the installation owner to **accept**; 401/404/422 tell you which auth layer failed; token out of URLs/`.git/config` | `raise_for_status()` hides GitHub's error body → replace with `RuntimeError(f"... {resp.status_code}: {resp.text}")` in `auth.py`. Separate write-scoped token for PR comments (week 4)? |
 | 2026-09-29 | Step 3.4: Redis published on `127.0.0.1:6379` only; API: `SET sentinel:seen:<sha256(body)> NX EX 24h` then `LPUSH sentinel:jobs`, 503 if Redis down; `sentinel/worker.py` (`Job` pydantic model, `BLMOVE` jobs→processing, `scan_pr`, dead-letter on any exception, `LREM` in `finally`, `requeue_stale` on start); fakeredis tests — API `13 passed`, agents `40 passed`. First live webhook crashed (`NameError: hashlib`, import step skipped). Live: PR #5 job sat in the queue while the worker was off (nothing lost), then the worker ran it → 6 issues, Gemini 503 → Groq, lists back to 0/0/0. Style fixes (duplicate `import pytest`, import order, PEP 8 blank lines, missing final newlines in requirements, compose blank line) applied by Claude at user's request | Async work via a queue (10 s webhook limit); reliable queue (atomic BLMOVE + processing list); at-least-once ⇒ idempotent jobs; dead-letter queue; replay de-dup must key on **signed** data (body), not headers; privilege separation (internet-facing API holds only the webhook secret); Redis has no auth by default | `requeue_stale` is only safe with one worker (week 9). Poison-pill loop if a job kills the process (count attempts). Same PR scored `debug=True` MEDIUM in 3.3 and HIGH now → evals (week 10). API `Settings` still requires Gemini/Groq keys it no longer needs → remove. Live Redeliver→`duplicate` and Ctrl+C→requeue not yet tried by user |
+| 2026-09-30 | Step 4.1: `comment.py` (`md_escape`: collapse whitespace, zero-width space breaks auto-links/mentions/`#refs`, backslash-escape MD/HTML, length caps; `render_comment` with invisible marker; `upsert_comment`; `post_report` mints a separate `pull_requests: write` token after the scan), `raise_for_github_error` shows GitHub's error body, worker posts the report — `52 passed`. Live bug: worker crashed after 5 s with `redis TimeoutError` because redis-py 8.1 added a default `socket_timeout=5`, equal to the `BLMOVE` wait → `socket_timeout=30` + pinned `redis==8.1.0` (fixed by Claude at user's request). Live: PR #7 comment created @ `566c466`, then the same comment updated @ `6161737` (still 1 comment). Style fixes + `get_app_info` error body committed/pushed by Claude at user's request (`d2e61f4`) | Improper output handling (OWASP LLM05); escape, don't filter; upsert = idempotency for an at-least-once queue; one token per capability (read for the scan, write for the comment); trust needs author **and** marker; socket timeout must exceed the blocking-command timeout; unpinned dependencies change behaviour silently | Stale report race with 2+ workers (compare `head_sha` with the PR's current head before posting) → week 9. Other requirements still unpinned. `get_app_info` called on every job (cache later) |
 
 ---
 
@@ -116,4 +117,6 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - ~~LLM output to a Windows console can raise `UnicodeEncodeError`~~ ✅ `cli.py` reconfigures stdout to UTF-8.
 - Commit messages: keep them descriptive (`fix(api)` alone says nothing in `git log`).
 - `apps/api/app/config.py`: API no longer needs `gemini_api_key`/`groq_api_key` (worker does) → drop them so the internet-facing service holds only the webhook secret.
-- `auth.py`: `raise_for_status()` on the token call hides GitHub's explanation (cost us a debug round on the 422) → raise with `resp.text`.
+- ~~`auth.py`: `raise_for_status()` hides GitHub's explanation~~ ✅ `raise_for_github_error` (4.1).
+- Pin the remaining `agents/requirements.txt` / `apps/api/requirements.txt` versions (redis-py 8 broke the worker silently) → before the week 9 image builds.
+- Worker must not post a stale report when 2+ workers run (check PR head SHA before posting) → week 9.
