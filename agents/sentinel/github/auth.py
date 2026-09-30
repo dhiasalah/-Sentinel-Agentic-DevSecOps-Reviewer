@@ -18,18 +18,19 @@ def make_app_jwt(app_id: int, private_key_pem: str, now: int | None = None) -> s
     return jwt.encode(payload, private_key_pem, algorithm="RS256")
 
 
+def raise_for_github_error(resp: httpx.Response) -> None:
+    if resp.is_error:
+        raise RuntimeError(f"GitHub {resp.request.method} {resp.request.url.path} failed ({resp.status_code}): {resp.text}")
+
+
 def get_app_info(app_jwt: str) -> dict:
     resp = httpx.get(
         f"{GITHUB_API}/app",
         headers={**HEADERS, "Authorization": f"Bearer {app_jwt}"},
         timeout=10,
     )
-    resp.raise_for_status()
+    raise_for_github_error(resp)
     return resp.json()
-
-def raise_for_github_error(resp: httpx.Response) -> None:
-    if resp.is_error:
-        raise RuntimeError(f"GitHub {resp.request.method} {resp.request.url.path} failed ({resp.status_code}): {resp.text}")
 
 
 def get_installation_token(app_jwt: str, installation_id: int, repo_name: str, permissions: dict[str, str]) -> str:

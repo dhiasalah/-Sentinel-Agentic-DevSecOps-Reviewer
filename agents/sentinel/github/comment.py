@@ -22,6 +22,7 @@ def md_escape(text: str, limit: int = 1000) -> str:
     text = _LINKY.sub(lambda m: m.group(0)[0] + ZWSP + m.group(0)[1:], text)
     return _MD_SPECIAL.sub(lambda m: "\\" + m.group(0), text)
 
+
 def render_comment(issues: list[TriagedIssue], finding_count: int, head_sha: str) -> str:
     lines = [MARKER, f"## 🛡️ Sentinel security report for `{head_sha[:7]}`", ""]
     if not issues:
@@ -39,6 +40,7 @@ def render_comment(issues: list[TriagedIssue], finding_count: int, head_sha: str
     if len(issues) > MAX_ISSUES:
         lines += ["", f"…and {len(issues) - MAX_ISSUES} more issue(s) not shown."]
     return "\n".join(lines)
+
 
 def upsert_comment(token: str, repo: str, pr: int, body: str, bot_login: str) -> str:
     headers = {**HEADERS, "Authorization": f"Bearer {token}"}
