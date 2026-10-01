@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 5 — Multi-agent with LangGraph
-- **Step:** 5.1 — (to be broken into steps) LangGraph planner → parallel scanner agents
-- **Lesson:** `lessons/week05/01-...` (to be written)
+- **Step:** 5.1 — LangGraph skeleton: plan → parallel scanners → triage
+- **Lesson:** `lessons/week05/01-langgraph-skeleton.md`
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
@@ -46,8 +46,11 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - **Deliverable:** working bot on real PRs ✅ **Week 4 complete**
 
 ### Week 5 — Multi-agent with LangGraph
-- [ ] Move logic into LangGraph: planner → parallel scanner agents
-- [ ] Wrap Trivy, gitleaks, Checkov as MCP servers
+- [ ] 5.1 LangGraph skeleton: `plan` (code, not LLM) → `run_scanner` ×N via `Send` → `triage`; CLI + worker share it; benchmark unchanged (7/15)
+- [ ] 5.2 gitleaks node + file-based planner + failed-scanner reporting (V04)
+- [ ] 5.3 Trivy (dependencies, V15) + Checkov (Dockerfile/IaC, V14)
+- [ ] 5.4 Scanners as MCP servers (`mcp-servers/`), graph calls them through MCP
+- [ ] 5.5 Live PR with 4 parallel scanners + benchmark re-run
 - **Deliverable:** all four scanners run in parallel on a PR
 
 ### Week 6 — Fixer, sandbox, approval
@@ -123,3 +126,5 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - ~~`auth.py`: `raise_for_status()` hides GitHub's explanation~~ ✅ `raise_for_github_error` (4.1).
 - Pin the remaining `agents/requirements.txt` / `apps/api/requirements.txt` versions (redis-py 8 broke the worker silently) → before the week 9 image builds.
 - Worker must not post a stale report when 2+ workers run (check PR head SHA before posting) → week 9.
+- LLM sometimes returns schema-invalid JSON (`TriageError`, seen 2026-09-30 with Groq) → whole scan fails (correctly fail-closed). Add one retry / fall back to the next provider on `TriageError`.
+- PR scans cover the whole repo at `head_sha`, not only changed lines → noisy on real repos; filter to the diff later.

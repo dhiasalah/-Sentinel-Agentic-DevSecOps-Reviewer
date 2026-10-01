@@ -5,3 +5,4 @@ groq
 PyJWT[crypto]
 httpx
 redis==8.1.0
+langgraph==1.2.12

@@ -6,11 +6,11 @@ import traceback
 from pathlib import Path
 
 from sentinel.config import Settings
+from sentinel.graph import build_graph
 from sentinel.llm.router import build_router
 from sentinel.models import TriagedIssue
 from sentinel.policy import SEVERITY_ORDER, rank
-from sentinel.scanners.semgrep import parse_findings, run_semgrep
-from sentinel.triage import triage
+
 
 EXIT_OK, EXIT_ISSUES, EXIT_ERROR = 0, 1, 2
 
@@ -62,8 +62,9 @@ def main(argv: list[str] | None = None) -> int:
                         format="%(levelname)s %(name)s: %(message)s")
     sys.stdout.reconfigure(encoding="utf-8")
     try:
-        findings = parse_findings(run_semgrep(args.path))
-        issues = triage(findings, args.path, build_router(Settings()))
+        result = build_graph(build_router(Settings())).invoke({"path": str(args.path)})
+        findings, issues = result["findings"], result["issues"]
+
     except Exception as e:
         print(f"sentinel: scan failed: {type(e).__name__}: {e}", file=sys.stderr)
         if args.verbose:
