@@ -81,3 +81,11 @@ def test_hijacked_llm_cannot_hide_a_real_finding(repo):
     issues = triage([make_finding(line=2)], repo, FakeRouter(hijacked))
     assert issues[0].severity == "high"
     assert issues[0].review_reasons
+
+def test_secret_lines_never_reach_the_llm(tmp_path):
+    (tmp_path / "app.py").write_text('a = 1\nTOKEN = "hunter2hunter2"\nquery = f"SELECT {x}"\n')
+    leak = Finding(tool="gitleaks", rule_id="secret", severity="ERROR", message="m",
+                   file="app.py", line=2, end_line=2)
+    prompt = build_prompt([leak, make_finding(line=3)], tmp_path, tag="abc123")
+    assert "hunter2" not in prompt
+    assert "SELECT" in prompt

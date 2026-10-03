@@ -48,7 +48,8 @@ Answer with JSON only, in this shape:
              "explanation": "...", "fix": "..."}]}
 """
 
-def read_snippet(root: Path, file: str, line: int, context: int = 3) -> str:
+def read_snippet(root: Path, file: str, line: int, context: int = 3,
+                 hidden: frozenset[int] = frozenset()) -> str:
     root = root.resolve()
     path = (root / file).resolve()
     if not path.is_relative_to(root):
@@ -56,7 +57,19 @@ def read_snippet(root: Path, file: str, line: int, context: int = 3) -> str:
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     start = max(line - 1 - context, 0)
     end = min(line + context, len(lines))
-    return "\n".join(f"{n}: {lines[n - 1]}" for n in range(start + 1, end + 1))
+    return "\n".join(
+        f"{n}: [hidden by Sentinel: possible secret]" if n in hidden else f"{n}: {lines[n - 1]}"
+        for n in range(start + 1, end + 1)
+    )
+
+
+def secret_lines(findings: list[Finding], file: str) -> frozenset[int]:
+    return frozenset(
+        n
+        for f in findings
+        if f.tool == "gitleaks" and f.file == file
+        for n in range(f.line, (f.end_line or f.line) + 1)
+    )
 
 def build_prompt(findings: list[Finding], root: Path, tag: str) -> str:
     blocks = []
@@ -69,7 +82,7 @@ def build_prompt(findings: list[Finding], root: Path, tag: str) -> str:
             f"<untrusted-{tag}>\n"
             f"location: {f.file}:{f.line}\n"
             f"scanner message: {f.message}\n"
-            f"code:\n{read_snippet(root, f.file, f.line)}\n"
+            f"code:\n{read_snippet(root, f.file, f.line, hidden=secret_lines(findings, f.file))}\n"
             f"</untrusted-{tag}>"
         )
     return "Triage these findings and answer in JSON.\n\n" + "\n\n".join(blocks)

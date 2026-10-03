@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "hardcoded-secret-assignment"
+description = "Hardcoded secret assigned to a secret-looking variable"
+regex = '''(?i)\b\w*(?:secret|passw(?:or)?d|api_?key|token)\w*\s*[:=]\s*["']([^"'\s]{8,})["']'''
+secretGroup = 1
+keywords = ["secret", "password", "passwd", "apikey", "api_key", "token"]

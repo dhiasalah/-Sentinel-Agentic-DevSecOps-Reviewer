@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 5 — Multi-agent with LangGraph
-- **Step:** 5.1 — LangGraph skeleton: plan → parallel scanners → triage
-- **Lesson:** `lessons/week05/01-langgraph-skeleton.md`
+- **Step:** 5.2 Part A — gitleaks scanner node + hide secrets from the LLM
+- **Lesson:** `lessons/week05/02-gitleaks-secrets.md`
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
@@ -46,8 +46,11 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - **Deliverable:** working bot on real PRs ✅ **Week 4 complete**
 
 ### Week 5 — Multi-agent with LangGraph
-- [ ] 5.1 LangGraph skeleton: `plan` (code, not LLM) → `run_scanner` ×N via `Send` → `triage`; CLI + worker share it; benchmark unchanged (7/15)
+- [x] 5.1 LangGraph skeleton: `plan` (code, not LLM) → `run_scanner` ×N via `Send` → `triage`; CLI + worker share it — *done 2026-10-02 (code reviewed, `60 passed`, Mermaid graph correct; benchmark re-run and live PR **skipped** by user's choice → see blockers)*
 - [ ] 5.2 gitleaks node + file-based planner + failed-scanner reporting (V04)
+  - [ ] A. gitleaks node (pinned image, custom rule, `--redact`, repo can't silence it) + secret lines hidden from the LLM
+  - [ ] B. `plan` picks scanners from the files present
+  - [ ] C. a failed scanner is reported instead of failing the whole scan
 - [ ] 5.3 Trivy (dependencies, V15) + Checkov (Dockerfile/IaC, V14)
 - [ ] 5.4 Scanners as MCP servers (`mcp-servers/`), graph calls them through MCP
 - [ ] 5.5 Live PR with 4 parallel scanners + benchmark re-run
@@ -113,6 +116,7 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | 2026-09-30 | Step 4.2 Part A: `evals/benchmark/target/` (6 `.py` files, Dockerfile, requirements) with 15 planted vulns + 4 decoys, `expected.json` answer key outside the target; all line numbers verified against the key. Raw Semgrep (no LLM) on it: 11 findings → **7/15 vulns** (V03, V05, V08, V09, V10, V11, V13), **0/4 decoys** flagged. Full scan with triage (Gemini 504 → Groq): 11 findings → 8 issues, same 7/15, 0/4 decoys, no real vuln dismissed | Ground truth; recall vs false-positive rate; data contamination (no hints in code, key outside the scanned folder); decoys = true negatives; match by file + line range, not CWE (Semgrep tagged the SSTI as CWE-79 XSS) | Semgrep missed V01 SQLi (taint rules need a source like `request`; here it's a plain function arg), V02, V06, V07 pickle (again), V12. `0.0.0.0` finding on web.py:24 is neither a vuln nor a decoy → Part B needs an "unplanned" bucket. Rule for LLM-dismissed real vulns still open. Triage **misdiagnosed V10** (SSTI → "XSS", MEDIUM; real impact is RCE) and scored debug=True MEDIUM (HIGH in 3.4) → line match alone over-credits; severity drift again |
 | 2026-09-30 | Step 4.2 Part B: user found it uninteresting and asked Claude to implement it. Claude wrote `evals/score.py` (stdlib only, no `sentinel` import; match by file + line range; right-CWE and severity-floor quality checks; dismissed / decoys / unplanned counters; misses grouped by scanner), `evals/test_score.py` (7 rule tests + 1 answer-key integrity test), `expected.json` v2 (`cwes` list + `severity` floor), `scan -o` writes UTF-8 (old `agents/report.json` was UTF-16 from PowerShell `>` → removed, `evals/results/` ignored). First real run crashed: Gemini `499 CANCELLED` was not treated as transient → no Groq fallback, exit 2 (no stale report written) → 408/499 added to transient codes + 6 provider tests. Real score: **7/15 (47%), right CWE 6/7, severity ok 5/7, 0 dismissed, 0/4 decoys** | Evaluation harness; detection vs diagnosis quality; accept every correct answer (CWE tree); test the answer key; judge independence; one run = one sample; shell redirection re-encodes data; unknown error codes must be classified (fallback only works for errors you recognise) | Two bugs on one line can't be told apart (keep one per line). Goodhart: don't tune prompts on this benchmark only → hidden second benchmark in week 10. Run N times for severity spread (week 10) |
 | 2026-09-30 | Step 4.3: user recorded the demo (PR #9 opened → worker scans → comment with 8 issues incl. the prompt-injection review flag) and asked Claude to add + push it. Claude checked frames (every 32nd + scene changes): no `.env` contents, tokens or smee URL visible; renamed to `docs/demo/sentinel-pr-comment.gif`, added to README with descriptive alt text | Show, don't claim; demo ≠ benchmark; binary files stay in git history forever; redaction before publishing | GIF is full-screen 1903×931 and 5.3 MB (target was 1280×720, < 5 MB) → re-record smaller for week 10 + MP4 for LinkedIn. Demo PR #9 scans the whole playground (8 issues) rather than a 2-bug diff: Sentinel scans the repo at `head_sha`, not only changed files → diff-only scanning is a later improvement |
+| 2026-10-02 | Step 5.1 reviewed: `graph.py` (registry, `ScanState` with `operator.add` reducer, `plan` → `Send` fan-out → `triage_node` sorts then one LLM call), CLI + worker use `build_graph(...).invoke`, 2 graph tests (parallel < 0.9 s, crash fails closed) — `60 passed`, Mermaid shows `plan -.-> run_scanner --> triage`. User moved on without re-running the benchmark or a live PR. Prep for 5.2: Claude tested gitleaks v8.24.0 on the benchmark → default rules find **nothing** (V04 missed); custom rule finds it; a repo's own `.gitleaksignore` and `# gitleaks:allow` comments silently hide findings (confirmed) | Fan-out/fan-in; reducers; sort before the LLM for determinism; fail-closed default | Benchmark/live PR for 5.1 not re-run |
 
 ---
 
@@ -128,3 +132,5 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - Worker must not post a stale report when 2+ workers run (check PR head SHA before posting) → week 9.
 - LLM sometimes returns schema-invalid JSON (`TriageError`, seen 2026-09-30 with Groq) → whole scan fails (correctly fail-closed). Add one retry / fall back to the next provider on `TriageError`.
 - PR scans cover the whole repo at `head_sha`, not only changed lines → noisy on real repos; filter to the diff later.
+- 5.1 regression proof skipped (benchmark through the graph + live PR). Run both at the end of 5.2 Part A: the score must be 7/15 → 8/15 with V04 the only change.
+- Semgrep can be silenced by the scanned repo (`# nosemgrep`, `.semgrepignore`) like gitleaks was → add `--disable-nosem` and an explicit ignore policy. Its image `semgrep/semgrep` is also unpinned (gitleaks is pinned by digest since 5.2A).

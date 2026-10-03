@@ -8,13 +8,14 @@ from langgraph.types import Send
 
 from sentinel.llm.router import LLMRouter
 from sentinel.models import Finding, TriagedIssue
-from sentinel.scanners.semgrep import parse_findings, run_semgrep
+from sentinel.scanners import gitleaks, semgrep
 from sentinel.triage import triage
 
 Scanner = Callable[[Path], list[Finding]]
 
 SCANNERS: dict[str, Scanner] = {
-    "semgrep": lambda path: parse_findings(run_semgrep(path)),
+    "gitleaks": lambda path: gitleaks.parse_findings(gitleaks.run_gitleaks(path)),
+    "semgrep": lambda path: semgrep.parse_findings(semgrep.run_semgrep(path)),
 }
 
 
