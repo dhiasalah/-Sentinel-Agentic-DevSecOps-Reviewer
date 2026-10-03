@@ -56,3 +56,9 @@ def test_refuses_a_gitleaksignore_that_is_not_a_plain_file(tmp_path, captured):
     with pytest.raises(RuntimeError, match="not a regular file"):
         run_gitleaks(tmp_path)
     assert captured == []
+
+
+def test_shadow_ignore_file_ships_with_sentinel():
+    empty = gitleaks.CONFIG_DIR / "empty"
+    assert empty.is_file()
+    assert empty.stat().st_size == 0
