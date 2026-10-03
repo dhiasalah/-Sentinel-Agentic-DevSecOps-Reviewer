@@ -32,6 +32,7 @@ Concept deep-dives go in `lessons/concepts/`.
 - [4.3 Record the first demo GIF (storyboard, trimming, redaction checklist)](week04/04-demo-gif.md)
 - [5.1 LangGraph skeleton: plan → parallel scanners → triage (workflow vs agent)](week05/01-langgraph-skeleton.md)
 - [5.2 Part A: gitleaks secret scanning, custom rule, unsilenceable scan, secrets hidden from the LLM](week05/02-gitleaks-secrets.md)
+- [5.2 Part B: planner picks scanners from the files present (fail closed, empty plan still reaches triage)](week05/03-file-based-planner.md)
 
 ## Concepts
 - [AI security from zero: what lesson 2.3 really does](concepts/ai-security-from-zero.md) ← start here
