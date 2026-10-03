@@ -6,7 +6,7 @@
 ## Current position
 - **Week:** 5 — Multi-agent with LangGraph
 - **Step:** 5.2 Part B — `plan` picks scanners from the files present
-- **Lesson:** next: `lessons/week05/03-file-based-planner.md` (not written yet; Part A is in `02-gitleaks-secrets.md`)
+- **Lesson:** `lessons/week05/03-file-based-planner.md`
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
