@@ -31,6 +31,7 @@ Concept deep-dives go in `lessons/concepts/`.
 - [4.2 Benchmark grader: detection, right CWE, severity, decoys (Part B)](week04/03-benchmark-scorer.md)
 - [4.3 Record the first demo GIF (storyboard, trimming, redaction checklist)](week04/04-demo-gif.md)
 - [5.1 LangGraph skeleton: plan → parallel scanners → triage (workflow vs agent)](week05/01-langgraph-skeleton.md)
+- [5.2 Part A: gitleaks secret scanning, custom rule, unsilenceable scan, secrets hidden from the LLM](week05/02-gitleaks-secrets.md)
 
 ## Concepts
 - [AI security from zero: what lesson 2.3 really does](concepts/ai-security-from-zero.md) ← start here

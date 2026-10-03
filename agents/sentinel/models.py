@@ -9,6 +9,8 @@ class Finding(BaseModel):
     file: str
     line: int
     cwe: list[str] = []
+    end_line: int | None = None
+
 
 Severity = Literal["critical", "high", "medium", "low", "info"]
 
