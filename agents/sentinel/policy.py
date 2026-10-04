@@ -3,7 +3,10 @@ import re
 from sentinel.models import Severity, TriagedIssue
 
 SEVERITY_ORDER: list[Severity] = ["critical", "high", "medium", "low", "info"]
-SCANNER_FLOOR: dict[str, Severity] = {"ERROR": "high", "WARNING": "medium", "INFO": "low"}
+SCANNER_FLOOR: dict[str, Severity] = {
+    "ERROR": "high", "WARNING": "medium", "INFO": "low",
+    "CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low",
+}
 
 INJECTION_PATTERN = re.compile(
     r"ignore (all |any )?(previous|prior|above)"

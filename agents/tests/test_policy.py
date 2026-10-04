@@ -40,3 +40,6 @@ def test_detects_injection_attempts(text):
 
 def test_normal_code_is_not_flagged():
     assert not looks_like_injection('query = "SELECT * FROM users WHERE id = ?"\nconn.execute(query, (uid,))')
+    
+def test_ai_cannot_lower_a_critical_dependency():
+    assert apply_policy(make_issue(severity="low", scanner="CRITICAL"), []).severity == "critical"
