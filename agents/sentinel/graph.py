@@ -8,7 +8,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 import logging
 from sentinel.llm.router import LLMRouter
-from sentinel.models import Finding, TriagedIssue
+from sentinel.models import Finding, ScannerFailure, TriagedIssue
 from sentinel.planner import choose_scanners, list_files
 from sentinel.scanners import gitleaks, semgrep
 from sentinel.triage import triage
@@ -40,6 +40,7 @@ class ScanState(TypedDict):
     path: str
     scanners: list[str]
     findings: Annotated[list[Finding], operator.add]
+    failures: Annotated[list[ScannerFailure], operator.add]
     issues: list[TriagedIssue]
 
 
@@ -63,8 +64,13 @@ def fan_out(state: ScanState) -> list[Send] | str:
 
 
 def run_scanner(task: ScannerTask) -> dict:
-    return {"findings": SCANNERS[task["scanner"]].run(Path(task["path"]))
-}
+    name = task["scanner"]
+    try:
+        return {"findings": SCANNERS[name].run(Path(task["path"]))}
+    except Exception as e:
+        log.exception("scanner %s failed", name)
+        return {"failures": [ScannerFailure(scanner=name, error=type(e).__name__)]}
+
 
 def build_graph(router: LLMRouter):
     def triage_node(state: ScanState) -> dict:

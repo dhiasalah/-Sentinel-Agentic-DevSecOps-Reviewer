@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 5 — Multi-agent with LangGraph
-- **Step:** 5.2 Part B — `plan` picks scanners from the files present
-- **Lesson:** `lessons/week05/03-file-based-planner.md`
+- **Step:** 5.3 — Trivy (dependencies, V15) + Checkov (Dockerfile/IaC, V14) — not started
+- **Lesson:** next lesson to write: `lessons/week05/05-trivy-checkov.md`
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
@@ -47,10 +47,10 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 
 ### Week 5 — Multi-agent with LangGraph
 - [x] 5.1 LangGraph skeleton: `plan` (code, not LLM) → `run_scanner` ×N via `Send` → `triage`; CLI + worker share it — *done 2026-10-02 (code reviewed, `60 passed`, Mermaid graph correct; benchmark re-run and live PR **skipped** by user's choice → see blockers)*
-- [ ] 5.2 gitleaks node + file-based planner + failed-scanner reporting (V04)
+- [x] 5.2 gitleaks node + file-based planner + failed-scanner reporting (V04) — *done 2026-10-04*
   - [x] A. gitleaks node (pinned image, custom rule, `--redact`, repo can't silence it) + secret lines hidden from the LLM — *done 2026-10-03 (`66 passed`, benchmark 8/15 with V04, secret absent from report, `.gitleaksignore` attack neutralised live)*
-  - [ ] B. `plan` picks scanners from the files present
-  - [ ] C. a failed scanner is reported instead of failing the whole scan
+  - [x] B. `plan` picks scanners from the files present — *done 2026-10-03 (`planner.py`, `ScannerSpec(run, files)`, empty plan → triage; `71 passed`, benchmark still 8/15)*
+  - [x] C. a failed scanner is reported instead of failing the whole scan — *done 2026-10-04 (`ScannerFailure` + `failures` reducer, CLI exit 2, PR banner, worker passes failures on; `74 passed`; written by Claude at user's request)*
 - [ ] 5.3 Trivy (dependencies, V15) + Checkov (Dockerfile/IaC, V14)
 - [ ] 5.4 Scanners as MCP servers (`mcp-servers/`), graph calls them through MCP
 - [ ] 5.5 Live PR with 4 parallel scanners + benchmark re-run
@@ -119,6 +119,8 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 | 2026-10-02 | Step 5.1 reviewed: `graph.py` (registry, `ScanState` with `operator.add` reducer, `plan` → `Send` fan-out → `triage_node` sorts then one LLM call), CLI + worker use `build_graph(...).invoke`, 2 graph tests (parallel < 0.9 s, crash fails closed) — `60 passed`, Mermaid shows `plan -.-> run_scanner --> triage`. User moved on without re-running the benchmark or a live PR. Prep for 5.2: Claude tested gitleaks v8.24.0 on the benchmark → default rules find **nothing** (V04 missed); custom rule finds it; a repo's own `.gitleaksignore` and `# gitleaks:allow` comments silently hide findings (confirmed) | Fan-out/fan-in; reducers; sort before the LLM for determinism; fail-closed default | Benchmark/live PR for 5.1 not re-run |
 
 | 2026-10-03 | Step 5.2 Part A reviewed: `gitleaks.py` (image pinned by digest, `--network none`, own `gitleaks.toml` with `hardcoded-secret-assignment` rule, `--ignore-gitleaks-allow`, `--redact`, `--exit-code 0`, repo `.gitleaksignore` shadowed / non-file refused), `Finding.end_line`, `secret_lines` masks gitleaks lines across **all** findings in `build_prompt`, registry entry in `graph.py`. Benchmark through the graph: **8/15** (V04 newly found, 7/8 right CWE, 7/8 severity ok, 0/4 decoys) → also closes the 5.1 benchmark regression proof. `s3nt1nel-benchmark` absent from `report.json`. Bug found: `config/empty` was never created → any repo with a `.gitleaksignore` would crash the scan (Docker creates a missing `-v` source as a folder, then can't mount it over a file) = fail-closed but DoS. User asked Claude to fix it: Claude created `config/empty` + guard test (`is_file`, size 0) → `66 passed`; live attack (secret + `.gitleaksignore` hiding it) → finding still reported | Secret scanning ≠ code scanning; precision vs recall in rules; OWASP LLM02 (mask before the prompt); target config files are attacker input; pin by digest; mocked subprocess tests check what you send, not that it works | Live PR re-run still pending (do it at the end of 5.2). Public-repo PR comment pointing at `file:line` of a secret: worth it? |
+| 2026-10-03 | Step 5.2 Part B reviewed (commit `459fc24`): `planner.py` (`list_files` with `.git` pruned, `onerror` raises, > 20 000 files → `None`; `choose_scanners` → all scanners on `None`), `ScannerSpec(run, files)` registry (gitleaks `*`, semgrep `*.py`), `fan_out` routes an empty plan straight to `triage` (LangGraph 1.2 otherwise stops after `plan` → `KeyError: 'issues'`), 4 planner tests + 1 graph test — `71 passed`, benchmark unchanged at 8/15. Code identical to the lesson except style nits (`import logging` placed after third-party imports, `}` on its own line in `run_scanner`, missing blank lines / trailing spaces in `test_graph.py`) | Static plan vs LLM plan (file names are attacker input); fail closed on suspicious input; optimisations must not change what is found; resource limits as a security control | Semgrep may detect extension-less Python by shebang → planner gap? |
+| 2026-10-04 | Step 5.2 Part C: the user had already applied pieces 1–5 + the graph/CLI/comment tests. Claude finished `test_worker.py` at the user's request (`scan_pr` fakes return `(issues, failures)`, new `test_partial_scan_still_posts_the_failure`) → `74 passed`. The live checks from the lesson (Docker stopped → exit 2; benchmark still 8/15) have **not** been run yet | Graceful degradation (degrade and flag the gap, never fail open); exit codes as a contract with CI; CWE-209 (only the exception type goes into the report, the message stays in the logs) | Retry a failed scanner once? |
 ---
 
 ## Blockers / questions to revisit
@@ -135,3 +137,4 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - PR scans cover the whole repo at `head_sha`, not only changed lines → noisy on real repos; filter to the diff later.
 - 5.1 regression proof: benchmark ✅ (8/15, V04 the only change, 2026-10-03). Live PR through the graph still pending → run at the end of 5.2 (after Part C).
 - Semgrep can be silenced by the scanned repo (`# nosemgrep`, `.semgrepignore`) like gitleaks was → add `--disable-nosem` and an explicit ignore policy. Its image `semgrep/semgrep` is also unpinned (gitleaks is pinned by digest since 5.2A).
+- 5.2 C live checks not run yet: Docker stopped → `exit code: 2` with both scanners reported; benchmark → exit 1, 8/15, 0/4 decoys. Do them together with the live PR.

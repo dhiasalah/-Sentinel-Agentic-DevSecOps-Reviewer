@@ -4,6 +4,7 @@ import fakeredis
 import pytest
 
 from sentinel import worker
+from sentinel.models import ScannerFailure
 
 SHA = "a" * 40
 JOB = json.dumps({"delivery": "d-1", "repo": "o/r", "pr": 7, "head_sha": SHA, "installation_id": 99})
@@ -27,7 +28,7 @@ def lengths(r):
 
 def test_job_is_scanned_then_removed(r, monkeypatch):
     calls = []
-    monkeypatch.setattr(worker, "scan_pr", lambda repo, sha, inst, settings: calls.append((repo, sha, inst)) or [])
+    monkeypatch.setattr(worker, "scan_pr", lambda repo, sha, inst, settings: calls.append((repo, sha, inst)) or ([], []))
     r.lpush(worker.QUEUE, JOB)
     assert worker.process_one(r, settings=None, timeout=1)
     assert calls == [("o/r", SHA, 99)]
@@ -52,7 +53,7 @@ def test_malformed_job_is_never_scanned(r, monkeypatch):
 
 def test_jobs_are_first_in_first_out(r, monkeypatch):
     seen = []
-    monkeypatch.setattr(worker, "scan_pr", lambda repo, sha, inst, settings: seen.append(inst) or [])
+    monkeypatch.setattr(worker, "scan_pr", lambda repo, sha, inst, settings: seen.append(inst) or ([], []))
     for inst in (1, 2, 3):
         r.lpush(worker.QUEUE, JOB.replace("99", str(inst)))
     while worker.process_one(r, settings=None, timeout=1):
@@ -67,7 +68,7 @@ def test_unfinished_jobs_are_requeued_on_start(r):
 
 
 def test_report_is_posted_after_scan(r, monkeypatch, posted):
-    monkeypatch.setattr(worker, "scan_pr", lambda *a: [])
+    monkeypatch.setattr(worker, "scan_pr", lambda *a: ([], []))
     r.lpush(worker.QUEUE, JOB)
     worker.process_one(r, settings=None, timeout=1)
     assert posted == [("o/r", 7)]
@@ -80,3 +81,14 @@ def test_failed_scan_posts_nothing(r, monkeypatch, posted):
     r.lpush(worker.QUEUE, JOB)
     worker.process_one(r, settings=None, timeout=1)
     assert posted == []
+
+
+def test_partial_scan_still_posts_the_failure(r, monkeypatch):
+    failure = ScannerFailure(scanner="semgrep", error="TimeoutExpired")
+    sent = []
+    monkeypatch.setattr(worker, "scan_pr", lambda *a: ([], [failure]))
+    monkeypatch.setattr(worker, "post_report", lambda *args: sent.append(args) or "created")
+    r.lpush(worker.QUEUE, JOB)
+    worker.process_one(r, settings=None, timeout=1)
+    assert sent[0][6] == [failure]
+    assert lengths(r) == (0, 0, 0)

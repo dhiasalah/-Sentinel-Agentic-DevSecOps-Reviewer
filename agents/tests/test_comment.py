@@ -2,8 +2,7 @@ import httpx
 
 from sentinel.github import comment
 from sentinel.github.comment import MARKER, md_escape, render_comment, upsert_comment
-from sentinel.models import Finding, TriagedIssue
-
+from sentinel.models import Finding, ScannerFailure, TriagedIssue
 
 def issue(**overrides):
     base = dict(title="SQL injection", severity="high", false_positive=False,
@@ -88,3 +87,8 @@ def test_someone_elses_comment_with_our_marker_is_ignored(monkeypatch):
     fake = FakeGitHub(existing=[{"id": 9, "user": {"login": "attacker"}, "body": MARKER + "\nfake report"}])
     use(monkeypatch, fake)
     assert upsert_comment("ghs_x", "o/r", 7, MARKER + "\nreal", "sentinel-dhia[bot]") == "created"
+
+def test_incomplete_scan_is_never_shown_as_clean():
+    body = render_comment([], 0, "b" * 40, [ScannerFailure(scanner="semgrep", error="RuntimeError")])
+    assert "Scan incomplete" in body and "semgrep" in body
+    assert "✅" not in body

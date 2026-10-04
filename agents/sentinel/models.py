@@ -23,3 +23,7 @@ class TriagedIssue(BaseModel):
     fix: str
     findings: list[Finding]
     review_reasons: list[str] = []
+
+class ScannerFailure(BaseModel):
+    scanner: str
+    error: str

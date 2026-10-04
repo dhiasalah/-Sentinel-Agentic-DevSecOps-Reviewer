@@ -3,8 +3,7 @@ import time
 import pytest
 
 from sentinel import graph
-from sentinel.models import Finding
-
+from sentinel.models import Finding, ScannerFailure
 
 def finding(tool, line):
     return Finding(tool=tool, rule_id="r", severity="ERROR", message="m", file="app.py", line=line)
@@ -41,14 +40,16 @@ def test_all_scanners_run_in_parallel_and_triage_sees_every_finding_once(monkeyp
     assert [f.tool for f in seen[0]] == ["a", "b"]
 
 
-def test_a_crashing_scanner_fails_the_whole_scan(monkeypatch, seen):
+def test_a_crashing_scanner_is_reported_and_the_others_still_count(monkeypatch, seen):
     def boom(path):
-        raise RuntimeError("scanner exploded")
+        raise RuntimeError("scanner exploded in /tmp/secret-path")
 
     monkeypatch.setattr(graph, "SCANNERS", {"ok": everywhere(slow_scanner("ok", 1)), "bad": everywhere(boom)})
-    with pytest.raises(RuntimeError, match="scanner exploded"):
-        graph.build_graph(router=None).invoke({"path": "."})
-    assert seen == []
+    result = graph.build_graph(router=None).invoke({"path": "."})
+    assert [f.tool for f in seen[0]] == ["ok"]
+    assert result["failures"] == [ScannerFailure(scanner="bad", error="RuntimeError")]
+    assert "secret-path" not in result["failures"][0].model_dump_json()
+
     
 def test_nothing_to_scan_still_reaches_triage(monkeypatch, seen, tmp_path):
     (tmp_path / "README.md").write_text("docs only")
