@@ -31,10 +31,13 @@ def process_one(r: redis.Redis, settings: Settings, timeout: int = 5) -> bool:
     try:
         job = Job.model_validate_json(raw)
         logger.info("scanning %s#%d @ %s (delivery %s)", job.repo, job.pr, job.head_sha[:7], job.delivery)
-        issues = scan_pr(job.repo, job.head_sha, job.installation_id, settings)
+        issues, failures = scan_pr(job.repo, job.head_sha, job.installation_id, settings)
         finding_count = sum(len(i.findings) for i in issues)
         logger.info("%s#%d done, %d issue(s)\n%s", job.repo, job.pr, len(issues), render_text(issues, finding_count))
-        action = post_report(job.repo, job.pr, job.head_sha, job.installation_id, issues, finding_count, settings)
+        for failure in failures:
+            logger.warning("%s#%d scanner %s failed (%s)", job.repo, job.pr, failure.scanner, failure.error)
+        action = post_report(job.repo, job.pr, job.head_sha, job.installation_id, issues, finding_count, failures,
+                             settings)
         logger.info("%s#%d report comment %s", job.repo, job.pr, action)
 
     except Exception:

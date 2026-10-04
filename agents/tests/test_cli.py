@@ -1,7 +1,9 @@
 import json
 
-from sentinel.cli import EXIT_ISSUES, EXIT_OK, exit_code, parse_args, render_json, render_text
-from sentinel.models import Finding, TriagedIssue
+from sentinel import cli
+from sentinel.cli import EXIT_ERROR, EXIT_ISSUES, EXIT_OK, exit_code, parse_args, render_json, render_text
+from sentinel.models import Finding, ScannerFailure, TriagedIssue
+
 
 
 def make_issue(severity="high", reasons=None):
@@ -37,3 +39,16 @@ def test_json_report_is_valid_json():
 
 def test_default_fail_on_is_high():
     assert parse_args(["scan", "some/folder"]).fail_on == "high"
+    
+def test_incomplete_scan_never_passes(monkeypatch, capsys):
+    failure = ScannerFailure(scanner="semgrep", error="TimeoutExpired")
+
+    class FakeGraph:
+        def invoke(self, state):
+            return {"findings": [], "issues": [], "failures": [failure]}
+
+    monkeypatch.setattr(cli, "Settings", lambda: None)
+    monkeypatch.setattr(cli, "build_router", lambda settings: None)
+    monkeypatch.setattr(cli, "build_graph", lambda router: FakeGraph())
+    assert cli.main(["scan", "."]) == EXIT_ERROR
+    assert "scanner semgrep failed (TimeoutExpired)" in capsys.readouterr().err

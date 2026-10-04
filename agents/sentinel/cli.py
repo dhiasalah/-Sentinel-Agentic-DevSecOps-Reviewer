@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     try:
         result = build_graph(build_router(Settings())).invoke({"path": str(args.path)})
-        findings, issues = result["findings"], result["issues"]
+        findings, issues, failures = result["findings"], result["issues"], result["failures"]
 
     except Exception as e:
         print(f"sentinel: scan failed: {type(e).__name__}: {e}", file=sys.stderr)
@@ -74,4 +74,6 @@ def main(argv: list[str] | None = None) -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(render_json(issues), encoding="utf-8")
     print(render_json(issues) if args.format == "json" else render_text(issues, len(findings)))
-    return exit_code(issues, args.fail_on)
+    for failure in failures:
+        print(f"sentinel: scanner {failure.scanner} failed ({failure.error}), the report is incomplete", file=sys.stderr)
+    return EXIT_ERROR if failures else exit_code(issues, args.fail_on)
