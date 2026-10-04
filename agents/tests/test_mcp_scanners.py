@@ -45,3 +45,8 @@ def test_server_starts_over_stdio_and_offers_every_scanner(tmp_path):
             return sorted(t.name for t in (await client.list_tools()).tools)
 
     assert asyncio.run(tool_names()) == ["checkov", "gitleaks", "semgrep", "trivy"]
+
+
+def test_a_failed_tool_reaches_the_graph_as_a_plain_runtime_error(tmp_path):
+    with pytest.raises(RuntimeError, match="MCP tool semgrep failed"):
+        mcp_scanners.call_scanner("semgrep", tmp_path / "missing")
