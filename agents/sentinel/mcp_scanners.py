@@ -34,10 +34,10 @@ def to_findings(name: str, result: CallToolResult) -> list[Finding]:
     return findings
 
 
-async def _call(name: str, path: Path) -> list[Finding]:
+async def _call(name: str, path: Path) -> CallToolResult:
     async with Client(server_params(path), read_timeout_seconds=TIMEOUT) as client:
-        return to_findings(name, await client.call_tool(name))
+        return await client.call_tool(name)
 
 
 def call_scanner(name: str, path: Path) -> list[Finding]:
-    return asyncio.run(_call(name, path))
+    return to_findings(name, asyncio.run(_call(name, path)))
