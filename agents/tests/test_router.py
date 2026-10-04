@@ -1,9 +1,12 @@
+import traceback
 from types import SimpleNamespace
 
+import groq
+import httpx
 import pytest
 from google.genai import errors as genai_errors
 
-from sentinel.llm.providers import GeminiProvider, ProviderUnavailable
+from sentinel.llm.providers import BadAnswer, GeminiProvider, GroqProvider, ProviderUnavailable
 from sentinel.llm.router import AllProvidersFailed, LLMRouter
 
 
@@ -45,6 +48,17 @@ def test_does_not_hide_real_bugs():
     assert second.calls == 0
 
 
+def test_falls_back_when_the_answer_is_unusable():
+    def check(text):
+        if text != "good":
+            raise BadAnswer("dropped findings")
+
+    first = FakeProvider("gemini", answer="bad")
+    second = FakeProvider("groq", answer="good")
+    result = LLMRouter([first, second]).complete("sys", "user", check=check)
+    assert (result.provider, result.text) == ("groq", "good")
+
+
 def test_raises_when_all_providers_fail():
     providers = [
         FakeProvider("gemini", error=ProviderUnavailable("429")),
@@ -75,3 +89,26 @@ def test_gemini_client_errors_are_not_hidden():
     provider._client = SimpleNamespace(models=RaisingModels(400))
     with pytest.raises(genai_errors.APIError):
         provider.complete("sys", "user")
+
+
+def groq_raising(code):
+    body = {"error": {"message": "m", "code": code, "failed_generation": '{"issues": "LEAKED REPO TEXT"'}}
+    response = httpx.Response(400, request=httpx.Request("POST", "https://groq.test"), json=body)
+
+    def create(**kwargs):
+        raise groq.BadRequestError(f"Error code: 400 - {body}", response=response, body=body)
+
+    provider = GroqProvider(api_key="test", model="m")
+    provider._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    return provider
+
+
+def test_groq_invalid_json_is_a_bad_answer_that_does_not_leak_it():
+    with pytest.raises(BadAnswer) as info:
+        groq_raising("json_validate_failed").complete("sys", "user", json_mode=True)
+    assert "LEAKED" not in "".join(traceback.format_exception(info.value))
+
+
+def test_groq_other_bad_requests_are_not_hidden():
+    with pytest.raises(groq.BadRequestError):
+        groq_raising("model_not_found").complete("sys", "user", json_mode=True)

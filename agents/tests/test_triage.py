@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from sentinel.llm.router import LLMResponse
+from sentinel.llm.router import LLMResponse, LLMRouter
 from sentinel.models import Finding
 from sentinel.triage import TriageError, build_prompt, parse_response, read_snippet, triage
 
@@ -31,9 +31,17 @@ class FakeRouter:
         self.text = text
         self.json_mode = None
 
-    def complete(self, system, user, json_mode=False):
+    def complete(self, system, user, json_mode=False, check=None):
         self.json_mode = json_mode
         return LLMResponse(provider="fake", text=self.text)
+
+
+class Provider:
+    def __init__(self, name, text):
+        self.name, self.text = name, text
+
+    def complete(self, system, user, json_mode=False):
+        return self.text
 
 
 def test_merges_duplicate_findings_into_one_issue():
@@ -89,3 +97,9 @@ def test_secret_lines_never_reach_the_llm(tmp_path):
     prompt = build_prompt([leak, make_finding(line=3)], tmp_path, tag="abc123")
     assert "hunter2" not in prompt
     assert "SELECT" in prompt
+
+
+def test_an_answer_that_drops_a_finding_gets_a_second_opinion(repo):
+    router = LLMRouter([Provider("gemini", answer(issue([1]))), Provider("groq", answer(issue([1, 2])))])
+    [only] = triage([make_finding(1), make_finding(3)], repo, router)
+    assert len(only.findings) == 2

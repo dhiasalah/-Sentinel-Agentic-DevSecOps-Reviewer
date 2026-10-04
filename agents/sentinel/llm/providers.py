@@ -11,6 +11,10 @@ class ProviderUnavailable(Exception):
     """Temporary failure (rate limit, outage, timeout): the router should try the next provider."""
 
 
+class BadAnswer(Exception):
+    """The provider answered, but the answer is unusable: the router should try the next provider."""
+
+
 class Provider(Protocol):
     name: str
 
@@ -70,4 +74,10 @@ class GroqProvider:
 
         except (groq.RateLimitError, groq.InternalServerError, groq.APIConnectionError) as e:
             raise ProviderUnavailable(f"groq: {type(e).__name__}") from e
+        except groq.BadRequestError as e:
+            error = e.body.get("error", {}) if isinstance(e.body, dict) else {}
+            if error.get("code") == "json_validate_failed":
+                # the error carries the model's whole broken answer (repo-derived text): keep it out of logs
+                raise BadAnswer("groq returned invalid JSON") from None
+            raise
         return response.choices[0].message.content or ""
