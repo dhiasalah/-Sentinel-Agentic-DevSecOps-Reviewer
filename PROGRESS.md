@@ -5,8 +5,8 @@
 
 ## Current position
 - **Week:** 5 — Multi-agent with LangGraph
-- **Step:** 5.3 — Trivy (dependencies, V15) + Checkov (Dockerfile/IaC, V14) — not started
-- **Lesson:** next lesson to write: `lessons/week05/05-trivy-checkov.md`
+- **Step:** 5.3 Part A — Trivy dependency scanner (V15)
+- **Lesson:** `lessons/week05/05-trivy-dependencies.md`
 - **Note:** user is a beginner in AI security → explain from zero, analogies + concrete examples (see `lessons/concepts/ai-security-from-zero.md`)
 - **Student level:** comfortable with code, learning AI/DevOps/security/deployment · **Mode:** copy-paste snippets + short explanations · **Language:** English
 
@@ -52,6 +52,8 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
   - [x] B. `plan` picks scanners from the files present — *done 2026-10-03 (`planner.py`, `ScannerSpec(run, files)`, empty plan → triage; `71 passed`, benchmark still 8/15)*
   - [x] C. a failed scanner is reported instead of failing the whole scan — *done 2026-10-04 (`ScannerFailure` + `failures` reducer, CLI exit 2, PR banner, worker passes failures on; `74 passed`; written by Claude at user's request)*
 - [ ] 5.3 Trivy (dependencies, V15) + Checkov (Dockerfile/IaC, V14)
+  - [ ] A. Trivy node (pinned 0.74.0 digest, DB download container without code, offline read-only scan container, 1 finding per package)
+  - [ ] B. Checkov node (Dockerfile/IaC, V14)
 - [ ] 5.4 Scanners as MCP servers (`mcp-servers/`), graph calls them through MCP
 - [ ] 5.5 Live PR with 4 parallel scanners + benchmark re-run
 - **Deliverable:** all four scanners run in parallel on a PR
@@ -138,3 +140,5 @@ Weeks are broken into small steps when we reach them. Only Week 1 is detailed fo
 - 5.1 regression proof: benchmark ✅ (8/15, V04 the only change, 2026-10-03). Live PR through the graph still pending → run at the end of 5.2 (after Part C).
 - Semgrep can be silenced by the scanned repo (`# nosemgrep`, `.semgrepignore`) like gitleaks was → add `--disable-nosem` and an explicit ignore policy. Its image `semgrep/semgrep` is also unpinned (gitleaks is pinned by digest since 5.2A).
 - 5.2 C live checks not run yet: Docker stopped → `exit code: 2` with both scanners reported; benchmark → exit 1, 8/15, 0/4 decoys. Do them together with the live PR.
+- `semgrep.py` / `gitleaks.py` use `text=True` → Windows cp1252 decode can crash on non-ASCII output (seen with Trivy). Switch to `encoding="utf-8"`.
+- Trivy DB update with 2+ workers sharing `sentinel-trivy-cache` may race → week 9 (one updater job, workers mount `:ro`).

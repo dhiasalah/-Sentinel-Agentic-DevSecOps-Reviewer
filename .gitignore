@@ -11,3 +11,7 @@ __pycache__/
 
 # Benchmark run outputs (regenerate, never commit)
 evals/results/
+
+# Personal learning notes: kept on this PC, never pushed
+lessons/
+PROGRESS.md

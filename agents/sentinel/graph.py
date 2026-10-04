@@ -10,7 +10,7 @@ import logging
 from sentinel.llm.router import LLMRouter
 from sentinel.models import Finding, ScannerFailure, TriagedIssue
 from sentinel.planner import choose_scanners, list_files
-from sentinel.scanners import gitleaks, semgrep
+from sentinel.scanners import gitleaks, semgrep, trivy
 from sentinel.triage import triage
 
 log = logging.getLogger(__name__)
@@ -33,6 +33,12 @@ SCANNERS: dict[str, ScannerSpec] = {
         run=lambda path: semgrep.parse_findings(semgrep.run_semgrep(path)),
         files=("*.py",),
     ),
+    "trivy": ScannerSpec(
+        run=lambda path: trivy.parse_findings(trivy.run_trivy(path)),
+        files=("requirements*.txt", "pipfile.lock", "poetry.lock", "uv.lock", "package-lock.json", "yarn.lock",
+               "pnpm-lock.yaml", "go.mod", "cargo.lock", "gemfile.lock", "composer.lock", "pom.xml"),
+    ),
+
 }
 
 

@@ -34,6 +34,7 @@ Concept deep-dives go in `lessons/concepts/`.
 - [5.2 Part A: gitleaks secret scanning, custom rule, unsilenceable scan, secrets hidden from the LLM](week05/02-gitleaks-secrets.md)
 - [5.2 Part B: planner picks scanners from the files present (fail closed, empty plan still reaches triage)](week05/03-file-based-planner.md)
 - [5.2 Part C: a failed scanner is reported (exit 2, PR banner), never hidden](week05/04-scanner-failures.md)
+- [5.3 Part A: Trivy dependency scanning (offline read-only scan, one finding per package, scanner supply chain)](week05/05-trivy-dependencies.md)
 
 ## Concepts
 - [AI security from zero: what lesson 2.3 really does](concepts/ai-security-from-zero.md) ← start here
