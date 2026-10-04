@@ -8,9 +8,9 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 import logging
 from sentinel.llm.router import LLMRouter
+from sentinel.mcp_scanners import call_scanner
 from sentinel.models import Finding, ScannerFailure, TriagedIssue
 from sentinel.planner import choose_scanners, list_files
-from sentinel.scanners import checkov, gitleaks, semgrep, trivy
 from sentinel.triage import triage
 
 log = logging.getLogger(__name__)
@@ -26,20 +26,20 @@ class ScannerSpec:
 
 SCANNERS: dict[str, ScannerSpec] = {
     "gitleaks": ScannerSpec(
-        run=lambda path: gitleaks.parse_findings(gitleaks.run_gitleaks(path)),
+        run=lambda path: call_scanner("gitleaks", path),
         files=("*",),
     ),
     "semgrep": ScannerSpec(
-        run=lambda path: semgrep.parse_findings(semgrep.run_semgrep(path)),
+        run=lambda path: call_scanner("semgrep", path),
         files=("*.py",),
     ),
     "trivy": ScannerSpec(
-        run=lambda path: trivy.parse_findings(trivy.run_trivy(path)),
+        run=lambda path: call_scanner("trivy", path),
         files=("requirements*.txt", "pipfile.lock", "poetry.lock", "uv.lock", "package-lock.json", "yarn.lock",
                "pnpm-lock.yaml", "go.mod", "cargo.lock", "gemfile.lock", "composer.lock", "pom.xml"),
     ),
     "checkov": ScannerSpec(
-        run=lambda path: checkov.parse_findings(checkov.run_checkov(path)),
+        run=lambda path: call_scanner("checkov", path),
         files=("dockerfile", "dockerfile.*", "*.dockerfile", "*.tf", "*.yaml", "*.yml"),
     ),
 

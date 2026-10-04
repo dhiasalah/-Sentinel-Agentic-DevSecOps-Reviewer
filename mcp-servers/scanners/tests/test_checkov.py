@@ -3,8 +3,8 @@ import subprocess
 
 import pytest
 
-from sentinel.scanners import checkov
-from sentinel.scanners.checkov import parse_findings, run_checkov
+from sentinel_scanners import checkov
+from sentinel_scanners.checkov import parse_findings, run_checkov
 
 
 def check(check_id, lines, name="Ensure something", **extra):
