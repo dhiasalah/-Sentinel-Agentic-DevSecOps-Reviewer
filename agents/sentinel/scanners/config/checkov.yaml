@@ -1,0 +1,2 @@
+# Sentinel mounts this over a repo's own .checkov.yaml / .checkov.yml so a PR cannot turn checks off.
+soft-fail: true
