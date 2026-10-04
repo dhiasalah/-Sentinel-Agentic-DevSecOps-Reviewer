@@ -3,7 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from sentinel.models import Finding
+from sentinel_scanners.models import Finding
 
 SEMGREP_IMAGE = "semgrep/semgrep"
 

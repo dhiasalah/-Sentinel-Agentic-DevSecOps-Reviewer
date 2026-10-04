@@ -1,4 +1,4 @@
-from sentinel.scanners.semgrep import parse_findings
+from sentinel_scanners.semgrep import parse_findings
 
 SAMPLE = {
     "results": [

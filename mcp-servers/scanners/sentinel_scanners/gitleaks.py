@@ -2,7 +2,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from sentinel.models import Finding
+from sentinel_scanners.models import Finding
 
 GITLEAKS_IMAGE = "zricethezav/gitleaks:v8.24.0@sha256:2bcceac45179b3a91bff11a824d0fb952585b429e54fc928728b1d4d5c3e5176"
 CONFIG_DIR = Path(__file__).parent / "config"

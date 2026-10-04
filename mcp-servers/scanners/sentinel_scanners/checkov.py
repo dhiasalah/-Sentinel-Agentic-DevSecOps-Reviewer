@@ -2,7 +2,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from sentinel.models import Finding
+from sentinel_scanners.models import Finding
 
 CHECKOV_IMAGE = "bridgecrew/checkov:3.3.16@sha256:7407699a91a556849ae66e05c3753f58cf0ce922aa6ddfac7839aad4f390c016"
 CONFIG_DIR = Path(__file__).parent / "config"

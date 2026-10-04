@@ -2,8 +2,8 @@ import subprocess
 
 import pytest
 
-from sentinel.scanners import gitleaks
-from sentinel.scanners.gitleaks import parse_findings, run_gitleaks
+from sentinel_scanners import gitleaks
+from sentinel_scanners.gitleaks import parse_findings, run_gitleaks
 
 SAMPLE = [{
     "RuleID": "hardcoded-secret-assignment",

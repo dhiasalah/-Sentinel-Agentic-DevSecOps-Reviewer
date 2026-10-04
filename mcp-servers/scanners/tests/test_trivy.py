@@ -3,8 +3,8 @@ import subprocess
 
 import pytest
 
-from sentinel.scanners import trivy
-from sentinel.scanners.trivy import parse_findings, run_trivy
+from sentinel_scanners import trivy
+from sentinel_scanners.trivy import parse_findings, run_trivy
 
 
 def vuln(cve, severity, fixed="2.0", cwes=None):
