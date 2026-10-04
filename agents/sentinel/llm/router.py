@@ -1,10 +1,11 @@
 import logging
 import sys
+from typing import Callable
 
 from pydantic import BaseModel
 
 from sentinel.config import Settings
-from sentinel.llm.providers import GeminiProvider, GroqProvider, Provider, ProviderUnavailable
+from sentinel.llm.providers import BadAnswer, GeminiProvider, GroqProvider, Provider, ProviderUnavailable
 
 log = logging.getLogger(__name__)
 
@@ -22,14 +23,17 @@ class LLMRouter:
     def __init__(self, providers: list[Provider]):
         self._providers = providers
 
-    def complete(self, system: str, user: str, json_mode: bool = False) -> LLMResponse:
+    def complete(self, system: str, user: str, json_mode: bool = False,
+                 check: Callable[[str], object] | None = None) -> LLMResponse:
         failures = []
         for provider in self._providers:
             try:
                 text = provider.complete(system, user, json_mode=json_mode)
+                if check:
+                    check(text)
                 return LLMResponse(provider=provider.name, text=text)
-            except ProviderUnavailable as e:
-                log.warning("provider %s unavailable (%s), falling back", provider.name, e)
+            except (ProviderUnavailable, BadAnswer) as e:
+                log.warning("provider %s failed (%s: %s), falling back", provider.name, type(e).__name__, e)
                 failures.append(f"{provider.name}: {e}")
         raise AllProvidersFailed("; ".join(failures))
 

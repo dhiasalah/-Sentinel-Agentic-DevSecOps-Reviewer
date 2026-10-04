@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, ValidationError
 
+from sentinel.llm.providers import BadAnswer
 from sentinel.llm.router import LLMRouter
 from sentinel.models import Finding, Severity, TriagedIssue
 from sentinel.policy import SEVERITY_ORDER, apply_policy
@@ -25,7 +26,7 @@ class LLMTriage(BaseModel):
     issues: list[LLMIssue]
 
 
-class TriageError(Exception):
+class TriageError(BadAnswer):
     """The LLM answer is unusable: bad JSON, wrong schema or inconsistent finding ids."""
 
 SYSTEM_PROMPT = """\
@@ -123,6 +124,7 @@ def triage(findings: list[Finding], root: Path, router: LLMRouter) -> list[Triag
         system=SYSTEM_PROMPT.replace("__TAG__", tag),
         user=build_prompt(findings, root, tag),
         json_mode=True,
+        check=lambda text: parse_response(text, findings),
     )
     log.info("triage answered by %s", response.provider)
     issues = [
