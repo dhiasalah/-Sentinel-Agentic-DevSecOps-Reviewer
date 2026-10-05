@@ -105,6 +105,7 @@ export function ScoreTrend({ points }: { points: ScorePoint[] }) {
               width={plotW}
               height={HEIGHT}
               fill="transparent"
+              className="cursor-crosshair"
               onPointerMove={onMove}
               onPointerLeave={() => setActive(null)}
             />
@@ -155,9 +156,12 @@ export function ScoreTrend({ points }: { points: ScorePoint[] }) {
           </thead>
           <tbody>
             {[...points].reverse().map((p) => (
-              <tr key={p.scanId} className="border-t border-rule">
+              <tr key={p.scanId} className="group relative border-t border-rule transition-colors hover:bg-surface">
                 <td className="py-2 pr-4">
-                  <Link href={`/dashboard/scans/${p.scanId}`} className="underline-offset-4 hover:underline">
+                  <Link
+                    href={`/dashboard/scans/${p.scanId}`}
+                    className="underline-offset-4 group-hover:underline after:absolute after:inset-0 after:content-['']"
+                  >
                     PR #{p.pr}
                   </Link>
                   <span className="ml-2 font-mono text-[12px] text-muted">{shortSha(p.sha)}</span>

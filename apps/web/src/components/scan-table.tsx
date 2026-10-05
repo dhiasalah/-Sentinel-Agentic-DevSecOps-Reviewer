@@ -24,23 +24,33 @@ export function ScanTable({ scans, showRepo = true }: { scans: Scan[]; showRepo?
       </thead>
       <tbody>
         {scans.map((scan) => (
-          <tr key={scan.id} className="group border-t border-rule">
-            <td className="py-4 pr-6">
-              <Link href={`/dashboard/scans/${scan.id}`} className="underline-offset-4 group-hover:underline">
+          <tr key={scan.id} className="group relative border-t border-rule transition-colors hover:bg-surface">
+            <td className="py-4 pr-6 whitespace-nowrap">
+              {/* The link covers the whole row (one tab stop, the row is clickable everywhere). */}
+              <Link
+                href={`/dashboard/scans/${scan.id}`}
+                className="underline-offset-4 group-hover:underline after:absolute after:inset-0 after:content-['']"
+              >
                 PR #{scan.pr}
               </Link>
               <span className="ml-2 font-mono text-[12px] text-muted">{shortSha(scan.head_sha)}</span>
             </td>
             {showRepo && (
-              <td className="hidden py-4 pr-6 font-mono text-[13px] md:table-cell">{scan.repo.full_name}</td>
+              <td className="hidden py-4 pr-6 font-mono text-[13px] [overflow-wrap:anywhere] md:table-cell">{scan.repo.full_name}</td>
             )}
-            <td className="py-4 pr-6">
+            <td className="py-4 pr-6 whitespace-nowrap">
               <ScanStatusBadge status={scan.status} incomplete={scan.failed_scanners.length > 0} />
             </td>
-            <td className="hidden py-4 pr-6 sm:table-cell">
-              {scan.status === "done" ? <SeverityCounts severities={scan.severities} /> : <span className="text-muted">—</span>}
+            <td className="hidden py-4 pr-6 whitespace-nowrap sm:table-cell">
+              {scan.status === "done" ? (
+                <span className="inline-block w-max">
+                  <SeverityCounts severities={scan.severities} />
+                </span>
+              ) : (
+                <span className="text-muted">—</span>
+              )}
             </td>
-            <td className="py-4 text-right text-[13px] text-muted" title={formatDateTime(scan.started_at)}>
+            <td className="py-4 text-right text-[13px] whitespace-nowrap text-muted" title={formatDateTime(scan.started_at)}>
               {formatRelative(scan.started_at, now)}
             </td>
           </tr>

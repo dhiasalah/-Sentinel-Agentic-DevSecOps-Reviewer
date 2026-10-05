@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { decide } from "@/app/dashboard/fixes/actions";
+import { AiText } from "@/components/ai-text";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { DiffView } from "@/components/diff-view";
 import { PageIntro, Section } from "@/components/page-intro";
-import { getApproval, getFix, isFixId } from "@/lib/data";
+import { SubmitButton } from "@/components/submit-button";
+import { getApproval, getFix, getFixScanId, isFixId } from "@/lib/data";
 import { formatDateTime, formatRelative, shortSha } from "@/lib/format";
 import type { Approval, Fix } from "@/lib/types";
 
@@ -21,7 +25,7 @@ export default async function FixPage({ params, searchParams }: PageProps<"/dash
   const { id } = await params;
   const fix = isFixId(id) ? await getFix(id) : null;
   if (!fix) notFound();
-  const approval = await getApproval(fix.id);
+  const [approval, scanId] = await Promise.all([getApproval(fix.id), getFixScanId(fix.id)]);
   const { error } = await searchParams;
   const message = typeof error === "string" ? ERRORS[error] : undefined;
   const github = `https://github.com/${fix.repo.full_name}`;
@@ -33,9 +37,10 @@ export default async function FixPage({ params, searchParams }: PageProps<"/dash
         crumbs={[
           { href: "/dashboard", label: "Overview" },
           { href: `/dashboard/repos/${fix.repo.id}`, label: fix.repo.full_name },
+          ...(scanId ? [{ href: `/dashboard/scans/${scanId}`, label: `Scan ${scanId}` }] : []),
         ]}
       >
-        <h1 className="font-serif text-[36px] leading-[1.08] tracking-[-0.02em] text-balance">{fix.issue_title}</h1>
+        <h1 className="font-serif text-[36px] leading-[1.08] tracking-[-0.02em] text-balance [overflow-wrap:anywhere]">{fix.issue_title}</h1>
         <p className="mt-3 text-muted">
           For{" "}
           <a href={`${github}/pull/${fix.pr}`} rel="noreferrer" target="_blank" className="underline decoration-rule underline-offset-4 hover:text-ink">
@@ -60,7 +65,7 @@ export default async function FixPage({ params, searchParams }: PageProps<"/dash
 
         <div className="mt-6 border-l-2 border-rule pl-4">
           <p className="font-mono text-[11px] tracking-[0.06em] text-muted uppercase">What the model says it changed</p>
-          <p className="mt-1.5 text-[15px]">{fix.summary}</p>
+          <AiText text={fix.summary} className="mt-1.5 text-[15px]" />
         </div>
       </PageIntro>
 
@@ -75,6 +80,14 @@ export default async function FixPage({ params, searchParams }: PageProps<"/dash
           </p>
         )}
         <Decision fix={fix} approval={approval} />
+        {fix.status === "waiting" && approval && <AutoRefresh />}
+        {scanId && (
+          <p className="mt-8 text-[14px]">
+            <Link href={`/dashboard/scans/${scanId}`} className="underline decoration-rule underline-offset-4 hover:decoration-ink">
+              Back to the scan
+            </Link>
+          </p>
+        )}
       </Section>
     </>
   );
@@ -113,7 +126,7 @@ function Decision({ fix, approval }: { fix: Fix; approval: Approval | null }) {
     return (
       <Outcome title={approval.decision === "approve" ? "You approved this patch." : "You rejected this patch."}>
         Recorded {formatDateTime(approval.decided_at)}. Sentinel&apos;s worker applies decisions within a few seconds while it is
-        running. Reload to see the result.
+        running. This page updates by itself.
       </Outcome>
     );
   }
@@ -128,12 +141,12 @@ function Decision({ fix, approval }: { fix: Fix; approval: Approval | null }) {
           Opens a pull request with this exact diff into the branch of pull request #{fix.pr}. Nothing is merged. If the pull request
           changed since <span className="font-mono">{shortSha(fix.head_sha)}</span>, nothing is pushed.
         </p>
-        <button
-          type="submit"
+        <SubmitButton
+          pending="Approving…"
           className="mt-5 inline-flex h-11 items-center justify-center self-start rounded-[4px] bg-ink px-5 font-medium text-paper transition-opacity hover:opacity-85"
         >
           Approve patch <span className="ml-2 font-mono text-[13px] opacity-80">{fix.patch_id}</span>
-        </button>
+        </SubmitButton>
       </form>
 
       <form action={decide} className="flex flex-col">
@@ -150,12 +163,12 @@ function Decision({ fix, approval }: { fix: Fix; approval: Approval | null }) {
           rows={3}
           className="mt-2 w-full resize-y rounded-[4px] border border-rule bg-surface px-3 py-2 text-[14px] focus:border-ink focus:outline-none"
         />
-        <button
-          type="submit"
+        <SubmitButton
+          pending="Rejecting…"
           className="mt-3 inline-flex h-11 items-center justify-center self-start rounded-[4px] border border-ink/20 bg-surface px-5 font-medium transition-colors hover:border-ink/50"
         >
           Reject
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

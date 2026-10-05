@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { signOut } from "@/app/auth/actions";
+import { SubmitButton } from "@/components/submit-button";
 import { Wordmark } from "@/components/wordmark";
 import { requireViewer } from "@/lib/auth";
 
@@ -25,9 +26,9 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
             @{viewer.login}
           </span>
           <form action={signOut}>
-            <button type="submit" className="text-muted underline-offset-4 transition-colors hover:text-ink hover:underline">
+            <SubmitButton pending="Signing out…" className="text-muted underline-offset-4 transition-colors hover:text-ink hover:underline">
               Sign out
-            </button>
+            </SubmitButton>
           </form>
         </div>
       </header>

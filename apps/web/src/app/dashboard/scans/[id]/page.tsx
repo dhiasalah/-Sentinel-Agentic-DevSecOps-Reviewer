@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { AiText } from "@/components/ai-text";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { FixPanel } from "@/components/fix-request";
 import { PageIntro, Section } from "@/components/page-intro";
@@ -28,6 +29,7 @@ export default async function ScanPage({ params, searchParams }: PageProps<"/das
   const requests = await listFixRequests(issues.map((i) => i.id));
   const byIssue = new Map(requests.map((r) => [r.issue_id, r]));
   const working = requests.some((r) => r.status === "queued" || r.status === "working");
+  const ready = requests.filter((r) => r.status === "waiting" && (r.fix?.status ?? "waiting") === "waiting").length;
   const { error } = await searchParams;
   const message = typeof error === "string" ? ERRORS[error] : undefined;
   const live = scan.status === "running";
@@ -88,7 +90,20 @@ export default async function ScanPage({ params, searchParams }: PageProps<"/das
       )}
 
       {scan.status === "done" && (
-        <Section title="Issues" aside={<SeverityCounts severities={scan.severities} />}>
+        <Section
+          title="Issues"
+          aside={
+            <>
+              <SeverityCounts severities={scan.severities} />
+              {ready > 0 && (
+                <span className="mt-2 flex items-center gap-2 text-ink">
+                  <span className="size-1.5 rounded-full bg-signal" aria-hidden="true" />
+                  {ready === 1 ? "1 fix ready for review" : `${ready} fixes ready for review`}
+                </span>
+              )}
+            </>
+          }
+        >
           {working && <AutoRefresh />}
           {message && (
             <p role="alert" className="mb-5 border-l-2 border-ink py-1 pl-4 text-[14px]">
@@ -140,7 +155,7 @@ function IssueItem({ issue, scanId, request }: { issue: Issue; scanId: number; r
           <span className="font-mono text-[11px] tracking-[0.06em] text-muted uppercase">AI thinks: false positive</span>
         )}
       </div>
-      <h3 className="mt-2 font-serif text-[22px] leading-snug">{issue.title}</h3>
+      <h3 className="mt-2 font-serif text-[22px] leading-snug [overflow-wrap:anywhere]">{issue.title}</h3>
 
       {issue.review_reasons.map((reason) => (
         <p key={reason} className="mt-3 border-l-2 border-sev-medium pl-3 text-[14px]">
@@ -149,13 +164,13 @@ function IssueItem({ issue, scanId, request }: { issue: Issue; scanId: number; r
       ))}
 
       <div className="mt-4 grid gap-4 md:grid-cols-2 md:gap-8">
-        <div>
+        <div className="min-w-0">
           <p className="font-mono text-[11px] tracking-[0.06em] text-muted uppercase">Why it matters</p>
-          <p className="mt-1.5 text-[14px] leading-relaxed">{issue.explanation}</p>
+          <AiText text={issue.explanation} className="mt-1.5 text-[14px] leading-relaxed" />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="font-mono text-[11px] tracking-[0.06em] text-muted uppercase">Suggested fix</p>
-          <p className="mt-1.5 text-[14px] leading-relaxed">{issue.fix}</p>
+          <AiText text={issue.fix} className="mt-1.5 text-[14px] leading-relaxed" />
         </div>
       </div>
 
@@ -165,7 +180,7 @@ function IssueItem({ issue, scanId, request }: { issue: Issue; scanId: number; r
         </summary>
         <ul className="mt-2 space-y-1 font-mono text-[12px]">
           {issue.findings.map((f, i) => (
-            <li key={i} className="flex flex-wrap gap-x-3">
+            <li key={i} className="flex flex-wrap gap-x-3 [overflow-wrap:anywhere]">
               <span>
                 {f.file}:{f.line}
               </span>
