@@ -2,7 +2,7 @@ import httpx
 import pytest
 
 from sentinel import store
-from sentinel.models import Finding, ScannerFailure, TriagedIssue
+from sentinel.models import Finding, RepoSettings, ScanEvent, ScannerFailure, TriagedIssue
 from sentinel.store import Store, StoreError
 
 FINDING = Finding(tool="semgrep", rule_id="r", severity="ERROR", message="m", file="app.py", line=5)
@@ -82,3 +82,26 @@ def test_user_login_reads_the_github_name(monkeypatch):
     monkeypatch.setattr(store.httpx, "get", fake_get)
     assert Store("https://x.supabase.co", "k").user_login("b734c29e-2684-435a-b0b3-195147dd7708") == "dhiasalah"
     assert seen["url"] == "https://x.supabase.co/auth/v1/admin/users/b734c29e-2684-435a-b0b3-195147dd7708"
+
+
+def test_an_event_is_written_without_empty_fields(fake):
+    s = Store("https://x.supabase.co", "k")
+    s.add_event(42, ScanEvent(stage="scanner", status="ok", scanner="semgrep", count=9))
+    s.add_event(42, ScanEvent(stage="checkout", status="started"))
+    assert fake.calls[0]["json"] == {"scan_id": 42, "stage": "scanner", "status": "ok", "scanner": "semgrep", "count": 9}
+    assert fake.calls[1]["json"] == {"scan_id": 42, "stage": "checkout", "status": "started"}
+
+
+def test_no_settings_row_means_defaults(monkeypatch):
+    monkeypatch.setattr(store.httpx, "request", FakeSupabase().request)
+    assert Store("https://x.supabase.co", "k").repo_settings(1) == RepoSettings()
+
+
+def test_settings_row_is_parsed_and_a_bad_one_raises(monkeypatch):
+    row = {"scanners": ["semgrep"], "report_min_severity": "high", "llm_order": ["groq", "gemini"]}
+    monkeypatch.setattr(store.httpx, "request", FakeSupabase(responses={("GET", "repo_settings"): [row]}).request)
+    assert Store("https://x.supabase.co", "k").repo_settings(1).scanners == ["semgrep"]
+    bad = {**row, "scanners": ["semgrep", "rm -rf"]}
+    monkeypatch.setattr(store.httpx, "request", FakeSupabase(responses={("GET", "repo_settings"): [bad]}).request)
+    with pytest.raises(ValueError):
+        Store("https://x.supabase.co", "k").repo_settings(1)
