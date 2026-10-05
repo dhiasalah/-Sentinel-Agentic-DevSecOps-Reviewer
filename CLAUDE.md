@@ -17,6 +17,10 @@ Go fast on the basics, go deep on AI / DevOps / security / deployment.
    - `lessons/` (lesson files)
    - `PROGRESS.md`
    - `CLAUDE.md` (only if the student asks to change the rules)
+   **Exception — frontend (`apps/web/`, requested by the student 2026-10-05):** Claude writes and edits all frontend code
+   itself, with real design care (no generic "vibe-coded" look). Frontend lessons explain *what was built and why*
+   (structure, concepts, security) and list only the non-code tasks for the student (accounts, dashboards, env vars,
+   running and checking). No copy-paste snippets for frontend tasks.
 2. **Code in parts, never whole files.** Give complete, working snippets (a function, a route, a Dockerfile block, a config section), one piece at a time. For each snippet:
    - say **where it goes**: file path + "add at the top / under X / replace Y";
    - follow it with **one short paragraph**: what it does and why it is written this way.
