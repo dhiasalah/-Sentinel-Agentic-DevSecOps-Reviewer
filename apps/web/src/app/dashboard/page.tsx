@@ -12,7 +12,7 @@ export default async function DashboardPage() {
     <div className="grid gap-8 lg:grid-cols-12">
       <p className="font-mono text-[12px] tracking-[0.08em] text-muted uppercase lg:col-span-3 lg:pt-2">Overview</p>
       <div className="lg:col-span-9">
-        <h1 className="text-[28px] leading-tight font-semibold tracking-[-0.01em]">
+        <h1 className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em]">
           {firstName ? `Welcome, ${firstName}.` : "Welcome."}
         </h1>
 
