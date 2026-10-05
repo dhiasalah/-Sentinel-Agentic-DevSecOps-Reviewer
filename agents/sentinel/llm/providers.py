@@ -80,4 +80,8 @@ class GroqProvider:
                 # the error carries the model's whole broken answer (repo-derived text): keep it out of logs
                 raise BadAnswer("groq returned invalid JSON") from None
             raise
+        except groq.APIStatusError as e:
+            if e.status_code == 413:  # prompt over the tier's tokens-per-minute budget: a quota, not a bug
+                raise ProviderUnavailable("groq: request too large") from e
+            raise
         return response.choices[0].message.content or ""

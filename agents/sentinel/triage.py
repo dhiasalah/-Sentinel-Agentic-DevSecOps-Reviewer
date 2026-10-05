@@ -1,11 +1,12 @@
 import logging
 import secrets
+import time
 from pathlib import Path
 
 from pydantic import BaseModel, Field, ValidationError
 
 from sentinel.llm.providers import BadAnswer
-from sentinel.llm.router import LLMRouter
+from sentinel.llm.router import AllProvidersFailed, LLMRouter
 from sentinel.models import Finding, Severity, TriagedIssue
 from sentinel.policy import SEVERITY_ORDER, apply_policy
 
@@ -72,7 +73,7 @@ def secret_lines(findings: list[Finding], file: str) -> frozenset[int]:
         for n in range(f.line, (f.end_line or f.line) + 1)
     )
 
-def build_prompt(findings: list[Finding], root: Path, tag: str) -> str:
+def build_prompt(findings: list[Finding], root: Path, tag: str, hide_from: list[Finding] | None = None) -> str:
     blocks = []
     for i, f in enumerate(findings, start=1):
         blocks.append(
@@ -83,7 +84,7 @@ def build_prompt(findings: list[Finding], root: Path, tag: str) -> str:
             f"<untrusted-{tag}>\n"
             f"location: {f.file}:{f.line}\n"
             f"scanner message: {f.message}\n"
-            f"code:\n{read_snippet(root, f.file, f.line, hidden=secret_lines(findings, f.file))}\n"
+            f"code:\n{read_snippet(root, f.file, f.line, hidden=secret_lines(hide_from or findings, f.file))}\n"
             f"</untrusted-{tag}>"
         )
     return "Triage these findings and answer in JSON.\n\n" + "\n\n".join(blocks)
@@ -116,19 +117,51 @@ def parse_response(text: str, findings: list[Finding]) -> list[TriagedIssue]:
     ]
 
 
+BATCH_SIZE = 8  # about 3k prompt tokens: fits Groq's free 8k tokens/minute and keeps Gemini under its deadline
+# Free tiers count tokens per minute: when every provider is out of quota, the window frees up within 60 s.
+QUOTA_WAITS = (30, 60)
+
+
+def batches(findings: list[Finding]) -> list[list[Finding]]:
+    """Small prompts, with findings of the same file kept together so the AI can still group them."""
+    by_file: dict[str, list[Finding]] = {}
+    for f in findings:
+        by_file.setdefault(f.file, []).append(f)
+    result: list[list[Finding]] = [[]]
+    for group in by_file.values():
+        for i in range(0, len(group), BATCH_SIZE):
+            part = group[i:i + BATCH_SIZE]
+            if result[-1] and len(result[-1]) + len(part) > BATCH_SIZE:
+                result.append([])
+            result[-1].extend(part)
+    return result
+
+
+def triage_batch(batch: list[Finding], root: Path, router: LLMRouter, everything: list[Finding]) -> list[TriagedIssue]:
+    tag = secrets.token_hex(8)
+    for wait in (*QUOTA_WAITS, None):
+        try:
+            response = router.complete(
+                system=SYSTEM_PROMPT.replace("__TAG__", tag),
+                user=build_prompt(batch, root, tag, hide_from=everything),
+                json_mode=True,
+                check=lambda text: parse_response(text, batch),
+            )
+            break
+        except AllProvidersFailed as e:
+            if wait is None:
+                raise
+            log.warning("triage: every provider failed (%s), retrying in %d s", e, wait)
+            time.sleep(wait)
+    log.info("triage of %d finding(s) answered by %s", len(batch), response.provider)
+    return [
+        apply_policy(issue, [read_snippet(root, f.file, f.line) for f in issue.findings])
+        for issue in parse_response(response.text, batch)
+    ]
+
+
 def triage(findings: list[Finding], root: Path, router: LLMRouter) -> list[TriagedIssue]:
     if not findings:
         return []
-    tag = secrets.token_hex(8)
-    response = router.complete(
-        system=SYSTEM_PROMPT.replace("__TAG__", tag),
-        user=build_prompt(findings, root, tag),
-        json_mode=True,
-        check=lambda text: parse_response(text, findings),
-    )
-    log.info("triage answered by %s", response.provider)
-    issues = [
-        apply_policy(issue, [read_snippet(root, f.file, f.line) for f in issue.findings])
-        for issue in parse_response(response.text, findings)
-    ]
+    issues = [issue for batch in batches(findings) for issue in triage_batch(batch, root, router, findings)]
     return sorted(issues, key=lambda issue: SEVERITY_ORDER.index(issue.severity))
