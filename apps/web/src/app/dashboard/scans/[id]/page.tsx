@@ -1,21 +1,35 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { AutoRefresh } from "@/components/auto-refresh";
+import { FixPanel } from "@/components/fix-request";
 import { PageIntro, Section } from "@/components/page-intro";
 import { ScanProgress } from "@/components/scan-progress";
 import { ScanStatusBadge } from "@/components/scan-status";
 import { SeverityCounts, SeverityMark } from "@/components/severity";
-import { getScan, listIssues, listScanEvents, parseId } from "@/lib/data";
+import { getScan, listFixRequests, listIssues, listScanEvents, parseId } from "@/lib/data";
 import { formatDateTime, formatDuration, plural, shortSha } from "@/lib/format";
-import type { Issue } from "@/lib/types";
+import type { FixRequest, Issue } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Scan · Sentinel" };
 
-export default async function ScanPage({ params }: PageProps<"/dashboard/scans/[id]">) {
+const ERRORS: Record<string, string> = {
+  requested: "A fix was already requested for this issue.",
+  denied: "A fix can't be requested for this issue.",
+  invalid: "That request was not valid. Reload the page and try again.",
+  failed: "The request could not be saved. Try again.",
+};
+
+export default async function ScanPage({ params, searchParams }: PageProps<"/dashboard/scans/[id]">) {
   const id = parseId((await params).id);
   const scan = id ? await getScan(id) : null;
   if (!scan) notFound();
   const [issues, events] = await Promise.all([scan.status === "done" ? listIssues(scan.id) : [], listScanEvents(scan.id)]);
+  const requests = await listFixRequests(issues.map((i) => i.id));
+  const byIssue = new Map(requests.map((r) => [r.issue_id, r]));
+  const working = requests.some((r) => r.status === "queued" || r.status === "working");
+  const { error } = await searchParams;
+  const message = typeof error === "string" ? ERRORS[error] : undefined;
   const live = scan.status === "running";
   const github = `https://github.com/${scan.repo.full_name}`;
   const duration = formatDuration(scan.started_at, scan.finished_at);
@@ -75,12 +89,18 @@ export default async function ScanPage({ params }: PageProps<"/dashboard/scans/[
 
       {scan.status === "done" && (
         <Section title="Issues" aside={<SeverityCounts severities={scan.severities} />}>
+          {working && <AutoRefresh />}
+          {message && (
+            <p role="alert" className="mb-5 border-l-2 border-ink py-1 pl-4 text-[14px]">
+              {message}
+            </p>
+          )}
           {issues.length === 0 ? (
             <p className="border-t border-rule py-5 text-muted">The scanners that ran found nothing.</p>
           ) : (
             <ol className="border-t border-ink">
               {issues.map((issue) => (
-                <IssueItem key={issue.id} issue={issue} />
+                <IssueItem key={issue.id} issue={issue} scanId={scan.id} request={byIssue.get(issue.id)} />
               ))}
             </ol>
           )}
@@ -110,10 +130,10 @@ function Notice({ title, children }: { title: string; children: React.ReactNode 
 
 // Titles, explanations and fixes are written by a model that read the pull request's code.
 // They are rendered as plain text (React escapes them) and labelled as AI-written.
-function IssueItem({ issue }: { issue: Issue }) {
+function IssueItem({ issue, scanId, request }: { issue: Issue; scanId: number; request: FixRequest | undefined }) {
   const locations = [...new Map(issue.findings.map((f) => [`${f.file}:${f.line}`, f])).values()];
   return (
-    <li className="border-b border-rule py-7">
+    <li id={`issue-${issue.id}`} className="scroll-mt-6 border-b border-rule py-7">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <SeverityMark severity={issue.severity} />
         {issue.false_positive && (
@@ -156,6 +176,10 @@ function IssueItem({ issue }: { issue: Issue }) {
           ))}
         </ul>
       </details>
+
+      <div className="mt-5 border-t border-dashed border-rule pt-4">
+        <FixPanel scanId={scanId} issue={issue} request={request} />
+      </div>
     </li>
   );
 }

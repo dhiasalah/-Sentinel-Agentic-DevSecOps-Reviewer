@@ -71,6 +71,17 @@ export type Approval = {
   decided_at: string;
 };
 
+export type FixRequestStatus = "queued" | "working" | "waiting" | "refused" | "no_fix" | "not_verified" | "failed";
+
+// A fix asked for from the scan page. The worker fills status and fix_id; the browser only ever sends issue_id.
+export type FixRequest = {
+  issue_id: number;
+  status: FixRequestStatus;
+  fix_id: string | null;
+  requested_at: string;
+  fix: { status: FixStatus; pr_url: string | null } | null;
+};
+
 export type ScanEventStage = "checkout" | "plan" | "scanner" | "triage" | "report";
 export type ScanEventStatus = "started" | "ok" | "failed" | "skipped";
 

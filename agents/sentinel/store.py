@@ -79,6 +79,37 @@ class Store:
             "order": "decided_at",
         })
 
+    def next_fix_request(self) -> dict | None:
+        # The oldest fix asked for in the dashboard, with everything the worker needs from rows it wrote itself.
+        rows = self._send("GET", "fix_requests", params={
+            "select": "id,issue:issues(title,severity,false_positive,explanation,fix,review_reasons,findings,"
+                      "scan:scans(id,repo_id,pr,head_sha,repo:repos(full_name)))",
+            "status": "eq.queued",
+            "order": "requested_at",
+            "limit": "1",
+        })
+        return rows[0] if rows else None
+
+    def claim_fix_request(self, request_id: int) -> bool:
+        # Only moves a request that is still queued: two workers can't both take it.
+        rows = self._send("PATCH", "fix_requests", params={"id": f"eq.{request_id}", "status": "eq.queued"},
+                          json={"status": "working"}, returning=True)
+        return bool(rows)
+
+    def finish_fix_request(self, request_id: int, status: str, fix_id: str | None = None) -> None:
+        self._send("PATCH", "fix_requests", params={"id": f"eq.{request_id}"}, json={
+            "status": status, "fix_id": fix_id, "finished_at": datetime.now(timezone.utc).isoformat()})
+
+    def requeue_working_fix_requests(self) -> int:
+        # A worker that died mid-fix leaves requests "working" forever: put them back in line at start-up.
+        rows = self._send("PATCH", "fix_requests", params={"status": "eq.working"}, json={"status": "queued"},
+                          returning=True)
+        return len(rows)
+
+    def scan_findings(self, scan_id: int) -> list[dict]:
+        rows = self._send("GET", "issues", params={"scan_id": f"eq.{scan_id}", "select": "findings"})
+        return [f for row in rows for f in row["findings"]]
+
     def user_login(self, user_id: str) -> str:
         resp = httpx.get(f"{self.url}/auth/v1/admin/users/{user_id}",
                          headers={**self.headers, "Authorization": f"Bearer {self.headers['apikey']}"}, timeout=10)

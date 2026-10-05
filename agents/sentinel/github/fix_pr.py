@@ -100,3 +100,12 @@ def checkout_pr(pr_ref: str, settings: Settings) -> Iterator[tuple[Path, dict]]:
     head = get_pr(token, repo, pr)
     with checkout_pr_head(repo, head["head_sha"], token) as path:
         yield path, {"repo": repo, "pr": pr, "head_sha": head["head_sha"]}
+
+
+@contextmanager
+def checkout_commit(repo: str, head_sha: str, settings: Settings) -> Iterator[Path]:
+    """The exact commit a stored scan looked at (read-only token), for fixes requested from the dashboard."""
+    app_jwt = make_app_jwt(settings.github_app_id, load_private_key(settings.github_private_key_path))
+    token = get_installation_token(app_jwt, installation_id(app_jwt, repo), repo.split("/")[1], {"contents": "read"})
+    with checkout_pr_head(repo, head_sha, token) as path:
+        yield path
