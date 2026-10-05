@@ -13,6 +13,11 @@
   --del-ink: #9a2f2a;
   --add-bg: #e5f1e8;
   --add-ink: #1f6b47;
+  --sev-critical: #8e2420;
+  --sev-high: #c0531f;
+  --sev-medium: #b3891c;
+  --sev-low: #47658a;
+  --sev-info: #8a8d93;
 }
 
 @theme inline {
@@ -27,6 +32,11 @@
   --color-del-ink: var(--del-ink);
   --color-add-bg: var(--add-bg);
   --color-add-ink: var(--add-ink);
+  --color-sev-critical: var(--sev-critical);
+  --color-sev-high: var(--sev-high);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-low: var(--sev-low);
+  --color-sev-info: var(--sev-info);
   --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-plex-mono);
   --font-serif: var(--font-newsreader);
