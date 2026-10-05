@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Issue, Repo, Scan, Severity } from "@/lib/types";
+import type { Approval, Fix, Issue, Repo, Scan, Severity } from "@/lib/types";
 
 // Every query runs as the signed-in user: row-level security decides what comes back.
 // A row that isn't yours simply doesn't exist from here, so pages answer 404, not 403.
@@ -66,14 +66,44 @@ export async function listIssues(scanId: number): Promise<Issue[]> {
   return data;
 }
 
-export async function countWaitingFixes(): Promise<number> {
+const FIX_COLUMNS =
+  "id, repo_id, pr, head_sha, issue_title, summary, provider, diff, patch_id, scanners, status, pr_url, created_at, repo:repos(id, full_name)";
+
+export async function listFixes({ status, limit = 20 }: { status?: Fix["status"]; limit?: number } = {}): Promise<Fix[]> {
   const supabase = await createClient();
-  const { count, error } = await supabase
-    .from("fixes")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "waiting");
+  let query = supabase.from("fixes").select(FIX_COLUMNS).order("created_at", { ascending: false }).limit(limit);
+  if (status) query = query.eq("status", status);
+  const { data, error } = await query.overrideTypes<Fix[], { merge: false }>();
   if (error) fail("fixes", error);
-  return count ?? 0;
+  return data;
+}
+
+export async function getFix(id: string): Promise<Fix | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("fixes")
+    .select(FIX_COLUMNS)
+    .eq("id", id)
+    .maybeSingle()
+    .overrideTypes<Fix | null, { merge: false }>();
+  if (error) fail("the fix", error);
+  return data;
+}
+
+export async function getApproval(fixId: string): Promise<Approval | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("approvals")
+    .select("decision, patch_id, reason, decided_at")
+    .eq("fix_id", fixId)
+    .maybeSingle()
+    .overrideTypes<Approval | null, { merge: false }>();
+  if (error) fail("the decision", error);
+  return data;
+}
+
+export function isFixId(raw: string): boolean {
+  return /^fix-[0-9a-f]{8}$/.test(raw);
 }
 
 // Route params come from the URL: only plain positive integers reach the database.

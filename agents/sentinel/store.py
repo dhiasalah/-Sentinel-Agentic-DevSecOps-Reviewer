@@ -14,7 +14,8 @@ class Store:
     """Writes scan results to Supabase through its REST API, with the secret key (bypasses RLS)."""
 
     def __init__(self, url: str, secret_key: str):
-        self.base = f"{url.rstrip('/')}/rest/v1"
+        self.url = url.rstrip("/")
+        self.base = f"{self.url}/rest/v1"
         self.headers = {"apikey": secret_key, "Content-Type": "application/json"}
 
     def _send(self, method: str, table: str, params: dict | None = None, json=None, returning: bool = False) -> list:
@@ -54,6 +55,28 @@ class Store:
     def fail_scan(self, scan_id: int) -> None:
         self._send("PATCH", "scans", params={"id": f"eq.{scan_id}"},
                    json={"status": "failed", "finished_at": datetime.now(timezone.utc).isoformat()})
+
+    def save_fix(self, fix: dict) -> None:
+        self._send("POST", "fixes", json=fix)
+
+    def update_fix(self, fix_id: str, fields: dict) -> None:
+        self._send("PATCH", "fixes", params={"id": f"eq.{fix_id}"}, json=fields)
+
+    def pending_approvals(self) -> list[dict]:
+        # Decisions made in the dashboard whose fix the worker hasn't acted on yet.
+        return self._send("GET", "approvals", params={
+            "select": "fix_id,decision,patch_id,reason,decided_by,fixes!inner(status)",
+            "fixes.status": "eq.waiting",
+            "order": "decided_at",
+        })
+
+    def user_login(self, user_id: str) -> str:
+        resp = httpx.get(f"{self.url}/auth/v1/admin/users/{user_id}",
+                         headers={**self.headers, "Authorization": f"Bearer {self.headers['apikey']}"}, timeout=10)
+        if resp.is_error:
+            raise StoreError(f"Supabase GET user failed ({resp.status_code})")
+        meta = resp.json().get("user_metadata") or {}
+        return meta.get("user_name") or meta.get("preferred_username") or user_id
 
 
 def open_store(settings: Settings | None) -> Store | None:
