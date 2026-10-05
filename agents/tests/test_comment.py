@@ -92,3 +92,12 @@ def test_incomplete_scan_is_never_shown_as_clean():
     body = render_comment([], 0, "b" * 40, [ScannerFailure(scanner="semgrep", error="RuntimeError")])
     assert "Scan incomplete" in body and "semgrep" in body
     assert "✅" not in body
+
+
+def test_hidden_issues_are_counted_not_silently_dropped():
+    assert "3 lower-severity issue(s) hidden" in render_comment([issue()], 1, "a" * 40, hidden=3)
+
+
+def test_everything_hidden_is_not_called_clean():
+    body = render_comment([], 2, "a" * 40, hidden=2)
+    assert "No issues found" not in body and "report threshold" in body

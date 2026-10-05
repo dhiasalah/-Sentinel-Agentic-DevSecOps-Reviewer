@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Callable
+from typing import Callable, Sequence
 
 from pydantic import BaseModel
 
@@ -38,11 +38,13 @@ class LLMRouter:
         raise AllProvidersFailed("; ".join(failures))
 
 
-def build_router(settings: Settings) -> LLMRouter:
-    return LLMRouter([
-        GeminiProvider(settings.gemini_api_key.get_secret_value(), settings.gemini_model),
-        GroqProvider(settings.groq_api_key.get_secret_value(), settings.groq_model),
-    ])
+def build_router(settings: Settings, order: Sequence[str] = ("gemini", "groq")) -> LLMRouter:
+    """order: which provider is asked first (repo setting). Every provider stays as a fallback."""
+    providers = {
+        "gemini": lambda: GeminiProvider(settings.gemini_api_key.get_secret_value(), settings.gemini_model),
+        "groq": lambda: GroqProvider(settings.groq_api_key.get_secret_value(), settings.groq_model),
+    }
+    return LLMRouter([providers[name]() for name in dict.fromkeys([*order, *providers])])
 
 
 if __name__ == "__main__":

@@ -9,6 +9,8 @@ from sentinel.cli import DEFAULT_DB, render_text
 from sentinel.config import Settings
 from sentinel.github.comment import post_report
 from sentinel.github.scan_pr import scan_pr
+from sentinel.models import RepoSettings, ScanEvent, TriagedIssue
+from sentinel.policy import rank
 from sentinel.store import Store, open_store
 
 logger = logging.getLogger(__name__)
@@ -34,14 +36,23 @@ def best_effort(what: str, fn, *args):
         return None
 
 
-def start_scan_record(store: Store | None, job: Job) -> int | None:
+def link_scan(store: Store | None, job: Job) -> tuple[int | None, RepoSettings]:
+    """Find the dashboard repo, record the scan, read the owner's settings. Every step may fail without harm."""
     if store is None:
-        return None
+        return None, RepoSettings()
     repo_id = best_effort("look up the repo", store.repo_id, job.repo)
     if repo_id is None:
         logger.info("%s is not linked to a dashboard user, results are not stored", job.repo)
-        return None
-    return best_effort("record the scan", store.start_scan, repo_id, job.pr, job.head_sha)
+        return None, RepoSettings()
+    # Unreadable settings fall back to the defaults, which scan everything: failing toward *more* checks.
+    repo_settings = best_effort("read the repo settings", store.repo_settings, repo_id) or RepoSettings()
+    return best_effort("record the scan", store.start_scan, repo_id, job.pr, job.head_sha), repo_settings
+
+
+def split_by_threshold(issues: list[TriagedIssue], minimum: str) -> tuple[list[TriagedIssue], int]:
+    """Issues shown in the PR comment, and how many were hidden. The dashboard always keeps all of them."""
+    shown = [issue for issue in issues if rank(issue.severity) <= rank(minimum)]
+    return shown, len(issues) - len(shown)
 
 
 def process_one(r: redis.Redis, settings: Settings, timeout: int = 5) -> bool:
@@ -52,21 +63,36 @@ def process_one(r: redis.Redis, settings: Settings, timeout: int = 5) -> bool:
         job = Job.model_validate_json(raw)
         logger.info("scanning %s#%d @ %s (delivery %s)", job.repo, job.pr, job.head_sha[:7], job.delivery)
         store = open_store(settings)
-        scan_id = start_scan_record(store, job)
+        scan_id, repo_settings = link_scan(store, job)
+
+        def progress(event: ScanEvent) -> None:
+            if scan_id:
+                best_effort("record progress", store.add_event, scan_id, event)
+
         try:
-            issues, failures = scan_pr(job.repo, job.head_sha, job.installation_id, settings)
+            issues, failures = scan_pr(job.repo, job.head_sha, job.installation_id, settings,
+                                       repo_settings=repo_settings, on_event=progress)
         except Exception:
             if scan_id:
                 best_effort("mark the scan failed", store.fail_scan, scan_id)
             raise
-        if scan_id:
-            best_effort("store the results", store.finish_scan, scan_id, issues, failures)
         finding_count = sum(len(i.findings) for i in issues)
         logger.info("%s#%d done, %d issue(s)\n%s", job.repo, job.pr, len(issues), render_text(issues, finding_count))
         for failure in failures:
             logger.warning("%s#%d scanner %s failed (%s)", job.repo, job.pr, failure.scanner, failure.error)
-        action = post_report(job.repo, job.pr, job.head_sha, job.installation_id, issues, finding_count, failures,
-                             settings)
+        shown, hidden = split_by_threshold(issues, repo_settings.report_min_severity)
+        progress(ScanEvent(stage="report", status="started", count=len(shown)))
+        try:
+            action = post_report(job.repo, job.pr, job.head_sha, job.installation_id, shown, finding_count, failures,
+                                 settings, hidden)
+            progress(ScanEvent(stage="report", status="ok", count=len(shown)))
+        except Exception:
+            progress(ScanEvent(stage="report", status="failed"))
+            raise
+        finally:
+            # Stored even if the comment failed, and last: the live view stops once the status leaves "running".
+            if scan_id:
+                best_effort("store the results", store.finish_scan, scan_id, issues, failures)
         logger.info("%s#%d report comment %s", job.repo, job.pr, action)
 
     except Exception:

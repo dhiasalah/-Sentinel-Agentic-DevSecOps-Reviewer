@@ -24,13 +24,15 @@ def md_escape(text: str, limit: int = 1000) -> str:
 
 
 def render_comment(issues: list[TriagedIssue], finding_count: int, head_sha: str,
-                   failures: list[ScannerFailure] = ()) -> str:
+                   failures: list[ScannerFailure] = (), hidden: int = 0) -> str:
     lines = [MARKER, f"## 🛡️ Sentinel security report for `{head_sha[:7]}`", ""]
     if failures:
         names = ", ".join(sorted(f.scanner for f in failures))
         lines += [f"> ⚠️ **Scan incomplete:** {md_escape(names, 200)} failed, so this report may be missing issues. "
                   "Re-run the scan before merging.", ""]
-    if not issues:
+    if not issues and hidden:
+        lines.append("No issues at or above this repository's report threshold.")
+    elif not issues:
         lines.append("No issues found by the scanners that ran." if failures else "No issues found. ✅")
     else:
         lines.append(f"**{len(issues)} issue(s)** from {finding_count} scanner finding(s). "
@@ -44,6 +46,9 @@ def render_comment(issues: list[TriagedIssue], finding_count: int, head_sha: str
         lines += [f"- **Why:** {md_escape(issue.explanation)}", f"- **Fix:** {md_escape(issue.fix)}"]
     if len(issues) > MAX_ISSUES:
         lines += ["", f"…and {len(issues) - MAX_ISSUES} more issue(s) not shown."]
+    if hidden:
+        lines += ["", f"{hidden} lower-severity issue(s) hidden by this repository's report threshold "
+                      "(see the Sentinel dashboard)."]
     return "\n".join(lines)
 
 
@@ -65,8 +70,8 @@ def upsert_comment(token: str, repo: str, pr: int, body: str, bot_login: str) ->
 
 def post_report(repo: str, pr: int, head_sha: str, installation_id: int,
                 issues: list[TriagedIssue], finding_count: int, failures: list[ScannerFailure],
-                settings: Settings) -> str:
+                settings: Settings, hidden: int = 0) -> str:
     app_jwt = make_app_jwt(settings.github_app_id, load_private_key(settings.github_private_key_path))
     bot_login = get_app_info(app_jwt)["slug"] + "[bot]"
     token = get_installation_token(app_jwt, installation_id, repo.split("/")[1], {"pull_requests": "write"})
-    return upsert_comment(token, repo, pr, render_comment(issues, finding_count, head_sha, failures), bot_login)
+    return upsert_comment(token, repo, pr, render_comment(issues, finding_count, head_sha, failures, hidden), bot_login)

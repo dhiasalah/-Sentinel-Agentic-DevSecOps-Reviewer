@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import httpx
 
 from sentinel.config import Settings
-from sentinel.models import ScannerFailure, TriagedIssue
+from sentinel.models import RepoSettings, ScanEvent, ScannerFailure, TriagedIssue
 
 
 class StoreError(Exception):
@@ -55,6 +55,15 @@ class Store:
     def fail_scan(self, scan_id: int) -> None:
         self._send("PATCH", "scans", params={"id": f"eq.{scan_id}"},
                    json={"status": "failed", "finished_at": datetime.now(timezone.utc).isoformat()})
+
+    def add_event(self, scan_id: int, event: ScanEvent) -> None:
+        self._send("POST", "scan_events", json={"scan_id": scan_id, **event.model_dump(exclude_none=True)})
+
+    def repo_settings(self, repo_id: int) -> RepoSettings:
+        rows = self._send("GET", "repo_settings", params={
+            "repo_id": f"eq.{repo_id}", "select": "scanners,report_min_severity,llm_order"})
+        # Validated again here: a bad row raises instead of silently turning a scanner off.
+        return RepoSettings.model_validate(rows[0]) if rows else RepoSettings()
 
     def save_fix(self, fix: dict) -> None:
         self._send("POST", "fixes", json=fix)

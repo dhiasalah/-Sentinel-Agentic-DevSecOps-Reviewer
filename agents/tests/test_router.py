@@ -112,3 +112,15 @@ def test_groq_invalid_json_is_a_bad_answer_that_does_not_leak_it():
 def test_groq_other_bad_requests_are_not_hidden():
     with pytest.raises(groq.BadRequestError):
         groq_raising("model_not_found").complete("sys", "user", json_mode=True)
+
+
+def test_repo_setting_picks_the_first_provider_and_keeps_the_other_as_fallback():
+    from pydantic import SecretStr
+
+    from sentinel.config import Settings
+    from sentinel.llm.router import build_router
+
+    settings = Settings(gemini_api_key=SecretStr("g"), groq_api_key=SecretStr("q"), _env_file=None)
+    assert [p.name for p in build_router(settings)._providers] == ["gemini", "groq"]
+    assert [p.name for p in build_router(settings, ["groq", "gemini"])._providers] == ["groq", "gemini"]
+    assert [p.name for p in build_router(settings, ["groq"])._providers] == ["groq", "gemini"]
