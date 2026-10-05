@@ -4,17 +4,20 @@ import logging
 import sys
 import traceback
 from pathlib import Path
-
+import getpass
+import secrets
+from langgraph.types import Command, StateSnapshot
 from sentinel.config import Settings
+from sentinel.fix_graph import Decision, build_fix_graph, open_checkpoints
 from sentinel.fixer import NotFixable, propose_fix
 from sentinel.graph import SCANNERS, build_graph
 from sentinel.llm.router import build_router
 from sentinel.models import Finding, TriagedIssue
 from sentinel.policy import SEVERITY_ORDER, rank
-from sentinel.sandbox import SandboxError, verify_fix
-
+from sentinel.sandbox import SandboxError, Verification, verify_fix
 
 EXIT_OK, EXIT_ISSUES, EXIT_ERROR = 0, 1, 2
+DEFAULT_DB = Path(".sentinel/approvals.sqlite")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -39,7 +42,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     verify.add_argument("--issue", type=int, required=True, help="issue number in the report (1 = first)")
     verify.add_argument("--patch", type=Path, required=True, help="patch written by `fix -o`")
     verify.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
-
+    propose = commands.add_parser("propose", help="fix one issue, verify it in the sandbox, then wait for a human")
+    propose.add_argument("path", type=Path, help="the folder that was scanned")
+    propose.add_argument("--report", type=Path, required=True, help="JSON report written by `scan -o`")
+    propose.add_argument("--issue", type=int, required=True, help="issue number in the report (1 = first)")
+    propose.add_argument("--db", type=Path, default=DEFAULT_DB, help="where paused fixes are saved")
+    propose.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
+    review = commands.add_parser("review", help="show a paused fix, or approve / reject it")
+    review.add_argument("id", help="the fix id printed by `propose`")
+    decision = review.add_mutually_exclusive_group()
+    decision.add_argument("--approve", metavar="PATCH_ID", help="approve this exact patch (its id is shown with the diff)")
+    decision.add_argument("--reject", action="store_true", help="reject the patch")
+    review.add_argument("--reason", default="", help="why you reject it")
+    review.add_argument("--db", type=Path, default=DEFAULT_DB, help="where paused fixes are saved")
+    review.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
     return parser.parse_args(argv)
 
 
@@ -111,15 +127,80 @@ def run_verify(args: argparse.Namespace) -> int:
         if args.verbose:
             traceback.print_exc()
         return EXIT_ERROR
-    print(f"sandbox: patch changes {', '.join(result.changed)}; re-scanned with {', '.join(result.scanners)}")
-    for f in result.still_there:
-        print(f"  still reported: {f.tool} {f.rule_id} at {f.file}:{f.line}")
-    for f in result.new:
-        print(f"  NEW: {f.tool} {f.rule_id} at {f.file}:{f.line}")
-    for problem in result.problems:
-        print(f"  problem: {problem}")
-    print("verified: the issue is gone and nothing new appeared" if result.verified else "NOT verified")
+    show_verification(result)
     return EXIT_OK if result.verified else EXIT_ISSUES
+
+
+def show_verification(result: Verification, file=None) -> None:
+    print(f"sandbox: patch changes {', '.join(result.changed)}; re-scanned with {', '.join(result.scanners)}", file=file)
+    for f in result.still_there:
+        print(f"  still reported: {f.tool} {f.rule_id} at {f.file}:{f.line}", file=file)
+    for f in result.new:
+        print(f"  NEW: {f.tool} {f.rule_id} at {f.file}:{f.line}", file=file)
+    for problem in result.problems:
+        print(f"  problem: {problem}", file=file)
+    print("verified: the issue is gone and nothing new appeared" if result.verified else "NOT verified", file=file)
+
+
+def show_fix(fix_id: str, state: StateSnapshot) -> int:
+    if state.interrupts:
+        pending = state.interrupts[0].value
+        print(pending["diff"], end="")
+        print(f"sentinel: {pending['summary']} (by {pending['provider']}), "
+              f"verified in the sandbox with {', '.join(pending['scanners'])}", file=sys.stderr)
+        print(f"sentinel: fix {fix_id} is waiting for a human. Patch id: {pending['patch_id']}", file=sys.stderr)
+        print(f"  approve: python -m sentinel review {fix_id} --approve {pending['patch_id']}", file=sys.stderr)
+        print(f"  reject:  python -m sentinel review {fix_id} --reject --reason \"...\"", file=sys.stderr)
+        return EXIT_OK
+    values = state.values
+    if not values:
+        print(f"sentinel: no fix with id {fix_id}", file=sys.stderr)
+        return EXIT_ERROR
+    if "verification" in values and not values["verification"].verified:
+        show_verification(values["verification"], file=sys.stderr)
+    status = values.get("status", "unfinished (an error stopped it)")
+    who = f" by {values['decided_by']} at {values['decided_at']}" if "decided_by" in values else ""
+    why = f": {values['reason']}" if values.get("reason") else ""
+    print(f"sentinel: fix {fix_id} {status}{who}{why}", file=sys.stderr)
+    return EXIT_OK if status == "approved" else EXIT_ISSUES
+
+
+def run_propose(args: argparse.Namespace) -> int:
+    fix_id = f"fix-{secrets.token_hex(4)}"
+    config = {"configurable": {"thread_id": fix_id}}
+    try:
+        issue, all_findings = load_issue(args.report, args.issue)
+        with open_checkpoints(args.db) as saver:
+            graph = build_fix_graph(build_router(Settings()), saver)
+            graph.invoke({"path": str(args.path), "issue": issue, "all_findings": all_findings}, config)
+            return show_fix(fix_id, graph.get_state(config))
+    except Exception as e:
+        print(f"sentinel: propose failed: {type(e).__name__}: {e}", file=sys.stderr)
+        if args.verbose:
+            traceback.print_exc()
+        return EXIT_ERROR
+
+
+def run_review(args: argparse.Namespace) -> int:
+    config = {"configurable": {"thread_id": args.id}}
+    try:
+        with open_checkpoints(args.db) as saver:
+            graph = build_fix_graph(build_router(Settings()), saver)
+            state = graph.get_state(config)
+            if (args.approve or args.reject) and not state.interrupts:
+                print(f"sentinel: fix {args.id} is not waiting for a decision", file=sys.stderr)
+            elif args.approve or args.reject:
+                decision = Decision(decision="approve" if args.approve else "reject",
+                                    patch_id=args.approve or state.interrupts[0].value["patch_id"],
+                                    by=getpass.getuser(), reason=args.reason)
+                graph.invoke(Command(resume=decision.model_dump()), config)
+                state = graph.get_state(config)
+            return show_fix(args.id, state)
+    except Exception as e:
+        print(f"sentinel: review failed: {type(e).__name__}: {e}", file=sys.stderr)
+        if args.verbose:
+            traceback.print_exc()
+        return EXIT_ERROR
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -131,6 +212,11 @@ def main(argv: list[str] | None = None) -> int:
         return run_fix(args)
     if args.command == "verify":
         return run_verify(args)
+    if args.command == "propose":
+        return run_propose(args)
+    if args.command == "review":
+        return run_review(args)
+
 
     try:
         result = build_graph(build_router(Settings())).invoke({"path": str(args.path)})
