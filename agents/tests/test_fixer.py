@@ -55,6 +55,25 @@ def test_unsafe_edits_are_refused(edit, reason):
         parse_fix(fix(edit), {"app.py": CODE}, [FINDING])
 
 
+FAR = Finding(tool="semgrep", rule_id="md5", severity="ERROR", message="m", file="app.py", line=37)
+
+
+def test_an_import_far_from_the_issue_is_allowed():
+    _, diff = parse_fix(fix(("app.py", "import yaml\n", "import yaml\nimport bcrypt\nfrom os import path as p\n"),
+                            ("app.py", "    pass", "    return 1")), {"app.py": CODE}, [FAR])
+    assert "+import bcrypt\n" in diff and "+    return 1\n" in diff
+
+
+@pytest.mark.parametrize("new", [
+    "import yaml\nos.system('id')\n",           # code hidden among imports
+    "import yaml; __import__('os').system('id')\n",  # two statements on one line
+    "import yaml\n    import bcrypt\n",          # indented: not a top-level import
+])
+def test_far_edits_that_are_not_only_imports_are_refused(new):
+    with pytest.raises(FixError, match="away from the reported issue"):
+        parse_fix(fix(("app.py", "import yaml\n", new)), {"app.py": CODE}, [FAR])
+
+
 def test_a_file_that_also_holds_a_secret_is_still_fixed(repo):
     leak = Finding(tool="gitleaks", rule_id="secret", severity="ERROR", message="m", file="app.py", line=1)
     patch = propose_fix(make_issue(), repo, LLMRouter([Provider("gemini", fix(SAFE))]), [FINDING, leak])

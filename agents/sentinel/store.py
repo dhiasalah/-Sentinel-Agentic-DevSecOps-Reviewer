@@ -96,9 +96,11 @@ class Store:
                           json={"status": "working"}, returning=True)
         return bool(rows)
 
-    def finish_fix_request(self, request_id: int, status: str, fix_id: str | None = None) -> None:
+    def finish_fix_request(self, request_id: int, status: str, fix_id: str | None = None,
+                           reason: str | None = None) -> None:
         self._send("PATCH", "fix_requests", params={"id": f"eq.{request_id}"}, json={
-            "status": status, "fix_id": fix_id, "finished_at": datetime.now(timezone.utc).isoformat()})
+            "status": status, "fix_id": fix_id, "reason": reason,
+            "finished_at": datetime.now(timezone.utc).isoformat()})
 
     def requeue_working_fix_requests(self) -> int:
         # A worker that died mid-fix leaves requests "working" forever: put them back in line at start-up.

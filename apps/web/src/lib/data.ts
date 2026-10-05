@@ -72,7 +72,7 @@ export async function listFixRequests(issueIds: number[]): Promise<FixRequest[]>
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("fix_requests")
-    .select("issue_id, status, fix_id, requested_at, fix:fixes(status, pr_url)")
+    .select("issue_id, status, fix_id, reason, requested_at, fix:fixes(status, pr_url)")
     .in("issue_id", issueIds)
     .overrideTypes<FixRequest[], { merge: false }>();
   if (error) fail("fix requests", error);

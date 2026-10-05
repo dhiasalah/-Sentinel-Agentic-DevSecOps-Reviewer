@@ -4,8 +4,10 @@ import pytest
 
 from sentinel import fix_graph, fix_requests
 from sentinel.fix_requests import run_fix_request
-from sentinel.fixer import NotFixable, Patch
-from sentinel.models import RepoSettings
+from sentinel.fixer import FixError, NotFixable, Patch
+from sentinel.llm.providers import ProviderUnavailable
+from sentinel.llm.router import AllProvidersFailed
+from sentinel.models import Finding, RepoSettings
 from sentinel.sandbox import Verification
 
 FINDING = {"tool": "semgrep", "rule_id": "sqli", "severity": "ERROR", "message": "m", "file": "app.py", "line": 5}
@@ -43,8 +45,8 @@ class FakeStore:
     def save_fix(self, fix):
         self.saved.append(fix)
 
-    def finish_fix_request(self, request_id, status, fix_id=None):
-        self.finished.append((request_id, status, fix_id))
+    def finish_fix_request(self, request_id, status, fix_id=None, reason=None):
+        self.finished.append((request_id, status, fix_id, reason))
 
 
 @pytest.fixture
@@ -76,25 +78,47 @@ def test_a_request_becomes_a_fix_waiting_for_a_human(checked_out, monkeypatch, t
     assert calls == [("SQL injection", 2)]
     [fix] = store.saved
     assert fix["status"] == "waiting" and fix["pr"] == 7 and fix["head_sha"] == "a" * 40 and fix["repo_id"] == 1
-    assert store.finished == [(3, "waiting", fix["id"])]
+    assert store.finished == [(3, "waiting", fix["id"], None)]
 
 
 def test_a_refused_fix_is_recorded_without_a_fix_row(checked_out, monkeypatch, tmp_path):
     def refuse(*a):
-        raise NotFixable("leaked secrets must be rotated by a human")
+        raise NotFixable("leaked secrets must be rotated by a human", "secret")
     monkeypatch.setattr(fix_graph, "propose_fix", refuse)
     store = FakeStore()
     run(store, tmp_path)
-    assert store.saved == [] and store.finished == [(3, "refused", None)]
+    assert store.saved == [] and store.finished == [(3, "refused", None, "secret")]
 
 
 def test_a_crash_marks_the_request_failed_so_it_can_be_retried(checked_out, monkeypatch, tmp_path):
     def boom(*a):
-        raise RuntimeError("all providers failed")
+        raise RuntimeError("GitHub refused the token")
     monkeypatch.setattr(fix_graph, "propose_fix", boom)
     store = FakeStore()
     assert run(store, tmp_path)
-    assert store.finished == [(3, "failed", None)]
+    assert store.finished == [(3, "failed", None, "error")]
+
+
+@pytest.mark.parametrize("errors, reason", [
+    ([ProviderUnavailable("429"), ProviderUnavailable("413")], "ai_unavailable"),
+    ([ProviderUnavailable("429"), FixError("edit is more than 10 lines away")], "ai_bad_answer"),
+])
+def test_ai_failures_say_whether_the_ai_was_busy_or_wrong(checked_out, monkeypatch, tmp_path, errors, reason):
+    def fail(*a):
+        raise AllProvidersFailed("all failed", errors)
+    monkeypatch.setattr(fix_graph, "propose_fix", fail)
+    store = FakeStore()
+    run(store, tmp_path)
+    assert store.finished == [(3, "failed", None, reason)]
+
+
+def test_a_sandbox_failure_says_what_went_wrong(checked_out, monkeypatch, tmp_path):
+    monkeypatch.setattr(fix_graph, "propose_fix", lambda *a: PATCH)
+    monkeypatch.setattr(fix_graph, "verify_fix", lambda *a: Verification(
+        changed=["app.py"], scanners=["semgrep"], new=[Finding.model_validate(OTHER)]))
+    store = FakeStore()
+    run(store, tmp_path)
+    assert store.finished == [(3, "not_verified", None, "new_findings")]
 
 
 def test_nothing_queued_does_nothing(tmp_path):

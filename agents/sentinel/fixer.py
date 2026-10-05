@@ -1,5 +1,6 @@
 import difflib
 import logging
+import re
 import secrets
 from pathlib import Path
 
@@ -14,6 +15,8 @@ log = logging.getLogger(__name__)
 
 MAX_FILE_CHARS = 50_000
 NEAR = 10
+# A top-level Python import line: the only kind of edit allowed far from the reported issue (a fix often needs one).
+IMPORT_RE = re.compile(r"(import [\w.]+( as \w+)?(, [\w.]+( as \w+)?)*|from [\w.]+ import [\w, ()]+)[ \t]*")
 
 
 class Edit(BaseModel):
@@ -34,7 +37,11 @@ class Patch(BaseModel):
 
 
 class NotFixable(Exception):
-    """Sentinel refuses to ask for an automatic fix for this issue."""
+    """Sentinel refuses to ask for an automatic fix for this issue. `code` is a fixed word the dashboard can show."""
+
+    def __init__(self, message: str, code: str = "other"):
+        super().__init__(message)
+        self.code = code
 
 
 class FixError(BadAnswer):
@@ -46,7 +53,8 @@ You are a senior application security engineer. You fix ONE reported vulnerabili
 
 Rules:
 - Change only what is needed to remove the vulnerability. No refactoring, no new features, no formatting changes.
-- Edit only the files listed, close to the reported lines.
+- Edit only the files listed, close to the reported lines. The only exception: you may add or change top-level
+  import lines anywhere, in a separate edit that contains only import lines.
 - Each edit replaces `old` with `new`. `old` must be copied EXACTLY from the file (same spaces and indentation),
   long enough to appear only once in the file.
 - If the issue cannot be fixed safely in code, or is not a real vulnerability, answer with an empty `edits` list
@@ -63,10 +71,10 @@ def read_source(root: Path, file: str) -> str:
     root = root.resolve()
     path = (root / file).resolve()
     if not path.is_relative_to(root) or not path.is_file():
-        raise NotFixable(f"not a file inside the repo: {file}")
+        raise NotFixable(f"not a file inside the repo: {file}", "not_a_file")
     text = path.read_text(encoding="utf-8")
     if len(text) > MAX_FILE_CHARS:
-        raise NotFixable(f"{file} is too large to send for a fix")
+        raise NotFixable(f"{file} is too large to send for a fix", "too_large")
     return text
 
 
@@ -74,9 +82,9 @@ def check_fixable(issue: TriagedIssue) -> None:
     # A file that also holds a leaked secret is still fixed: the repo owner accepts that the whole file,
     # secret included, is sent to the AI provider (decided 2026-10-05). The secret itself is never "fixed".
     if any(f.tool == "gitleaks" for f in issue.findings):
-        raise NotFixable("leaked secrets must be rotated by a human; deleting them from code is not enough")
+        raise NotFixable("leaked secrets must be rotated by a human; deleting them from code is not enough", "secret")
     if issue.false_positive:
-        raise NotFixable("the AI marked this issue as a false positive")
+        raise NotFixable("the AI marked this issue as a false positive", "false_positive")
 
 
 def build_prompt(issue: TriagedIssue, sources: dict[str, str], tag: str) -> str:
@@ -100,6 +108,12 @@ def near_a_finding(text: str, old: str, findings: list[Finding], file: str) -> b
     )
 
 
+def only_imports(edit: Edit) -> bool:
+    """True if every non-blank line the edit removes or adds is a top-level import statement."""
+    lines = [line for line in (edit.old + "\n" + edit.new).splitlines() if line.strip()]
+    return bool(lines) and all(IMPORT_RE.fullmatch(line) for line in lines)
+
+
 def apply_edits(answer: LLMFix, sources: dict[str, str], findings: list[Finding]) -> dict[str, str]:
     result = dict(sources)
     for edit in answer.edits:
@@ -108,7 +122,7 @@ def apply_edits(answer: LLMFix, sources: dict[str, str], findings: list[Finding]
         text = result[edit.file]
         if text.count(edit.old) != 1:
             raise FixError(f"`old` must appear exactly once in {edit.file} (found {text.count(edit.old)})")
-        if not near_a_finding(text, edit.old, findings, edit.file):
+        if not near_a_finding(text, edit.old, findings, edit.file) and not only_imports(edit):
             raise FixError(f"edit in {edit.file} is more than {NEAR} lines away from the reported issue")
         result[edit.file] = text.replace(edit.old, edit.new)
     return result
@@ -140,7 +154,7 @@ def propose_fix(issue: TriagedIssue, root: Path, router: LLMRouter, all_findings
     check_fixable(issue)
     sources = {name: read_source(root, name) for name in dict.fromkeys(f.file for f in issue.findings)}
     if leaked := sorted(name for name, text in sources.items() if looks_like_injection(text)):
-        raise NotFixable(f"{', '.join(leaked)} addresses the AI (possible prompt injection)")
+        raise NotFixable(f"{', '.join(leaked)} addresses the AI (possible prompt injection)", "prompt_injection")
     tag = secrets.token_hex(8)
     response = router.complete(
         system=SYSTEM_PROMPT.replace("__TAG__", tag),
