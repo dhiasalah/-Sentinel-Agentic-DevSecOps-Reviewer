@@ -44,3 +44,29 @@ export type Issue = {
   review_reasons: string[];
   findings: Finding[];
 };
+
+export type FixStatus = "waiting" | "approved" | "rejected" | "outdated" | "refused" | "not_verified" | "no_fix";
+
+export type Fix = {
+  id: string;
+  repo_id: number;
+  pr: number;
+  head_sha: string;
+  issue_title: string;
+  summary: string;
+  provider: string;
+  diff: string;
+  patch_id: string;
+  scanners: string[];
+  status: FixStatus;
+  pr_url: string | null;
+  created_at: string;
+  repo: Repo;
+};
+
+export type Approval = {
+  decision: "approve" | "reject";
+  patch_id: string;
+  reason: string;
+  decided_at: string;
+};

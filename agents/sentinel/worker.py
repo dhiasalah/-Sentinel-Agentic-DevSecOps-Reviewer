@@ -4,7 +4,8 @@ import sys
 import redis
 from pydantic import BaseModel
 
-from sentinel.cli import render_text
+from sentinel.approvals import apply_approvals
+from sentinel.cli import DEFAULT_DB, render_text
 from sentinel.config import Settings
 from sentinel.github.comment import post_report
 from sentinel.github.scan_pr import scan_pr
@@ -91,9 +92,12 @@ def main() -> None:
     r.ping()
     if moved := requeue_stale(r):
         logger.warning("requeued %d unfinished job(s) from a previous run", moved)
-    logger.info("worker ready, waiting for jobs on %s", QUEUE)
+    store = open_store(settings)
+    logger.info("worker ready, waiting for jobs on %s%s", QUEUE, " and dashboard decisions" if store else "")
     while True:
         process_one(r, settings)
+        if store:
+            best_effort("apply dashboard decisions", apply_approvals, store, DEFAULT_DB, settings)
 
 
 if __name__ == "__main__":

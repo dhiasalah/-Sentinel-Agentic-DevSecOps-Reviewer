@@ -8,6 +8,7 @@ from pathlib import Path
 import getpass
 import secrets
 from langgraph.types import Command, StateSnapshot
+from sentinel.approvals import fix_record
 from sentinel.config import Settings
 from sentinel.fix_graph import Decision, build_fix_graph, open_checkpoints
 from sentinel.fixer import NotFixable, propose_fix
@@ -17,6 +18,7 @@ from sentinel.llm.router import build_router
 from sentinel.models import Finding, TriagedIssue
 from sentinel.policy import SEVERITY_ORDER, rank
 from sentinel.sandbox import SandboxError, Verification, verify_fix
+from sentinel.store import open_store
 
 EXIT_OK, EXIT_ISSUES, EXIT_ERROR = 0, 1, 2
 DEFAULT_DB = Path(".sentinel/approvals.sqlite")
@@ -173,6 +175,31 @@ def show_fix(fix_id: str, state: StateSnapshot) -> int:
     return EXIT_OK if status == "approved" else EXIT_ISSUES
 
 
+def publish_fix(settings: Settings, fix_id: str, issue: TriagedIssue, target: dict | None, state: StateSnapshot) -> None:
+    store = open_store(settings)
+    if store is None or target is None or not state.interrupts:
+        return
+    try:
+        repo_id = store.repo_id(target["repo"])
+        if repo_id is None:
+            return
+        store.save_fix(fix_record(fix_id, repo_id, issue, target, state.interrupts[0].value))
+        print(f"sentinel: fix {fix_id} is also waiting in the dashboard", file=sys.stderr)
+    except Exception as e:
+        print(f"sentinel: could not publish the fix to the dashboard ({type(e).__name__}): {e}", file=sys.stderr)
+
+
+def sync_fix(settings: Settings, fix_id: str, state: StateSnapshot) -> None:
+    store = open_store(settings)
+    status = state.values.get("status")
+    if store is None or not state.values.get("target") or status not in ("approved", "rejected", "outdated"):
+        return
+    try:
+        store.update_fix(fix_id, {"status": status, "pr_url": state.values.get("pr_url")})
+    except Exception as e:
+        print(f"sentinel: could not update the dashboard ({type(e).__name__}): {e}", file=sys.stderr)
+
+
 def run_propose(args: argparse.Namespace) -> int:
     fix_id = f"fix-{secrets.token_hex(4)}"
     config = {"configurable": {"thread_id": fix_id}}
@@ -184,7 +211,9 @@ def run_propose(args: argparse.Namespace) -> int:
             graph = build_fix_graph(build_router(settings), saver, settings)
             target = target and {**target, "fix_id": fix_id}
             graph.invoke({"path": str(path), "issue": issue, "all_findings": all_findings, "target": target}, config)
-            return show_fix(fix_id, graph.get_state(config))
+            state = graph.get_state(config)
+            publish_fix(settings, fix_id, issue, target, state)
+            return show_fix(fix_id, state)
     except Exception as e:
         print(f"sentinel: propose failed: {type(e).__name__}: {e}", file=sys.stderr)
         if args.verbose:
@@ -207,6 +236,7 @@ def run_review(args: argparse.Namespace) -> int:
                                     by=getpass.getuser(), reason=args.reason)
                 graph.invoke(Command(resume=decision.model_dump()), config)
                 state = graph.get_state(config)
+                sync_fix(settings, args.id, state)
             return show_fix(args.id, state)
     except Exception as e:
         print(f"sentinel: review failed: {type(e).__name__}: {e}", file=sys.stderr)

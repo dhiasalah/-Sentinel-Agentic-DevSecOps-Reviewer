@@ -5,14 +5,15 @@ import { PageIntro, Section } from "@/components/page-intro";
 import { ScanStatusBadge } from "@/components/scan-status";
 import { ScanTable } from "@/components/scan-table";
 import { requireViewer } from "@/lib/auth";
-import { countWaitingFixes, listRepos, listScans } from "@/lib/data";
+import { listFixes, listRepos, listScans } from "@/lib/data";
 import { formatRelative, plural, shortSha } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Overview · Sentinel" };
 
 export default async function DashboardPage() {
   const viewer = await requireViewer();
-  const [repos, scans, waiting] = await Promise.all([listRepos(), listScans({ limit: 8 }), countWaitingFixes()]);
+  const [repos, scans, fixes] = await Promise.all([listRepos(), listScans({ limit: 8 }), listFixes({ status: "waiting" })]);
+  const waiting = fixes.length;
   const firstName = viewer.name?.split(" ")[0];
   const latest = new Map<number, (typeof scans)[number]>();
   for (const scan of scans) if (!latest.has(scan.repo_id)) latest.set(scan.repo_id, scan);
@@ -70,12 +71,28 @@ export default async function DashboardPage() {
         <ScanTable scans={scans} />
       </Section>
 
-      <Section title="Waiting for you">
-        <p className="border-t border-rule py-5 text-muted">
-          {waiting === 0
-            ? "Nothing to review. Proposed fixes will appear here once they pass the sandbox."
-            : `${plural(waiting, "fix")} passed the sandbox and need your decision.`}
-        </p>
+      <Section title="Waiting for you" aside="Fixes that passed the sandbox">
+        {fixes.length === 0 ? (
+          <p className="border-t border-rule py-5 text-muted">
+            Nothing to review. Proposed fixes will appear here once they pass the sandbox.
+          </p>
+        ) : (
+          <ul className="border-t border-ink">
+            {fixes.map((fix) => (
+              <li key={fix.id} className="border-b border-rule">
+                <Link
+                  href={`/dashboard/fixes/${fix.id}`}
+                  className="group flex flex-col gap-1 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="underline-offset-4 group-hover:underline">{fix.issue_title}</span>
+                  <span className="text-[13px] text-muted">
+                    <span className="font-mono">{fix.repo.full_name}</span> · PR #{fix.pr} · {formatRelative(fix.created_at, now)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </Section>
     </>
   );

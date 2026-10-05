@@ -63,3 +63,22 @@ def test_an_error_names_the_table_but_not_the_key(monkeypatch):
     with pytest.raises(StoreError, match="GET repos failed \\(401\\)") as e:
         Store("https://x.supabase.co", "sb_secret_abc").repo_id("o/r")
     assert "sb_secret_abc" not in str(e.value)
+
+
+def test_pending_approvals_only_asks_for_fixes_still_waiting(fake):
+    Store("https://x.supabase.co", "k").pending_approvals()
+    call = fake.calls[0]
+    assert call["url"].endswith("/rest/v1/approvals")
+    assert call["params"]["fixes.status"] == "eq.waiting" and "fixes!inner(status)" in call["params"]["select"]
+
+
+def test_user_login_reads_the_github_name(monkeypatch):
+    seen = {}
+
+    def fake_get(url, headers=None, timeout=None):
+        seen["url"] = url
+        return httpx.Response(200, json={"user_metadata": {"user_name": "dhiasalah"}}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(store.httpx, "get", fake_get)
+    assert Store("https://x.supabase.co", "k").user_login("b734c29e-2684-435a-b0b3-195147dd7708") == "dhiasalah"
+    assert seen["url"] == "https://x.supabase.co/auth/v1/admin/users/b734c29e-2684-435a-b0b3-195147dd7708"
