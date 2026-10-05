@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Wordmark } from "@/components/wordmark";
 
 const REPO_URL = "https://github.com/dhiasalah/-Sentinel-Agentic-DevSecOps-Reviewer";
@@ -45,12 +47,14 @@ export default function Home() {
     <div className="mx-auto flex min-h-dvh max-w-6xl flex-col px-5 sm:px-8">
       <header className="flex items-center justify-between border-b border-rule py-5">
         <Wordmark />
-        <a
-          href={REPO_URL}
-          className="font-mono text-[13px] text-muted transition-colors hover:text-ink"
-        >
-          Source on GitHub
-        </a>
+        <nav className="flex items-center gap-6 font-mono text-[13px]">
+          <a href={REPO_URL} className="hidden text-muted transition-colors hover:text-ink sm:inline">
+            Source on GitHub
+          </a>
+          <Link href="/login" className="text-ink underline-offset-4 hover:underline">
+            Sign in
+          </Link>
+        </nav>
       </header>
 
       <main className="flex-1">
@@ -96,8 +100,10 @@ export default function Home() {
       </main>
 
       <footer className="flex flex-col gap-2 border-t border-rule py-6 font-mono text-[12px] text-muted sm:flex-row sm:justify-between">
-        <span>Dashboard in progress. Sign-in with GitHub comes next.</span>
         <span>A learning project in agents, DevOps and security.</span>
+        <a href={REPO_URL} className="transition-colors hover:text-ink">
+          Source on GitHub
+        </a>
       </footer>
     </div>
   );
