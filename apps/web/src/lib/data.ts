@@ -1,7 +1,8 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Approval, Fix, Issue, Repo, Scan, Severity } from "@/lib/types";
+import { DEFAULT_SETTINGS } from "@/lib/types";
+import type { Approval, Fix, Issue, Repo, RepoSettings, Scan, ScanEvent, ScanStatus, Severity } from "@/lib/types";
 
 // Every query runs as the signed-in user: row-level security decides what comes back.
 // A row that isn't yours simply doesn't exist from here, so pages answer 404, not 403.
@@ -109,4 +110,57 @@ export function isFixId(raw: string): boolean {
 // Route params come from the URL: only plain positive integers reach the database.
 export function parseId(raw: string): number | null {
   return /^[1-9][0-9]{0,15}$/.test(raw) ? Number(raw) : null;
+}
+
+const EVENT_COLUMNS = "id, stage, status, scanner, count, at";
+
+export async function listScanEvents(scanId: number): Promise<ScanEvent[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("scan_events")
+    .select(EVENT_COLUMNS)
+    .eq("scan_id", scanId)
+    .order("id")
+    .limit(200)
+    .overrideTypes<ScanEvent[], { merge: false }>();
+  if (error) fail("the scan's progress", error);
+  return data;
+}
+
+// For the live stream: one client for the whole connection, asked again every poll.
+// Status is read *before* events: the worker writes every event before it closes the scan,
+// so once a poll sees a finished status, the events read right after it are complete.
+export async function openScanFeed(scanId: number) {
+  const supabase = await createClient();
+  return {
+    async status(): Promise<ScanStatus | null> {
+      const { data, error } = await supabase.from("scans").select("status").eq("id", scanId).maybeSingle();
+      if (error) fail("the scan", error);
+      return (data?.status as ScanStatus | undefined) ?? null;
+    },
+    async eventsAfter(lastId: number): Promise<ScanEvent[]> {
+      const { data, error } = await supabase
+        .from("scan_events")
+        .select(EVENT_COLUMNS)
+        .eq("scan_id", scanId)
+        .gt("id", lastId)
+        .order("id")
+        .limit(100)
+        .overrideTypes<ScanEvent[], { merge: false }>();
+      if (error) fail("the scan's progress", error);
+      return data;
+    },
+  };
+}
+
+export async function getRepoSettings(repoId: number): Promise<RepoSettings> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("repo_settings")
+    .select("scanners, report_min_severity, llm_order, updated_at")
+    .eq("repo_id", repoId)
+    .maybeSingle()
+    .overrideTypes<RepoSettings | null, { merge: false }>();
+  if (error) fail("the repository settings", error);
+  return data ?? DEFAULT_SETTINGS;
 }

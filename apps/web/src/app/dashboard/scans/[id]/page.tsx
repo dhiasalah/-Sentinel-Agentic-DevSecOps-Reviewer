@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { PageIntro, Section } from "@/components/page-intro";
+import { ScanProgress } from "@/components/scan-progress";
 import { ScanStatusBadge } from "@/components/scan-status";
 import { SeverityCounts, SeverityMark } from "@/components/severity";
-import { getScan, listIssues, parseId } from "@/lib/data";
+import { getScan, listIssues, listScanEvents, parseId } from "@/lib/data";
 import { formatDateTime, formatDuration, plural, shortSha } from "@/lib/format";
 import type { Issue } from "@/lib/types";
 
@@ -14,7 +15,8 @@ export default async function ScanPage({ params }: PageProps<"/dashboard/scans/[
   const id = parseId((await params).id);
   const scan = id ? await getScan(id) : null;
   if (!scan) notFound();
-  const issues = scan.status === "done" ? await listIssues(scan.id) : [];
+  const [issues, events] = await Promise.all([scan.status === "done" ? listIssues(scan.id) : [], listScanEvents(scan.id)]);
+  const live = scan.status === "running";
   const github = `https://github.com/${scan.repo.full_name}`;
   const duration = formatDuration(scan.started_at, scan.finished_at);
 
@@ -62,8 +64,14 @@ export default async function ScanPage({ params }: PageProps<"/dashboard/scans/[
             Nothing was reported for this commit, and the pull request did not get a comment from this run.
           </Notice>
         )}
-        {scan.status === "running" && <Notice title="This scan is still running.">Reload the page in a minute.</Notice>}
       </PageIntro>
+
+      {(live || events.length > 0) && (
+        <Section title={live ? "In progress" : "Run log"} aside={live ? "Updates as the agents work" : "Each step of this scan"}>
+          {/* The key remounts the log when the status changes, so the finished page starts from the stored events. */}
+          <ScanProgress key={scan.status} scanId={scan.id} startedAt={scan.started_at} initialEvents={events} live={live} />
+        </Section>
+      )}
 
       {scan.status === "done" && (
         <Section title="Issues" aside={<SeverityCounts severities={scan.severities} />}>
