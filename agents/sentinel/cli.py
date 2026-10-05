@@ -7,10 +7,11 @@ from pathlib import Path
 
 from sentinel.config import Settings
 from sentinel.fixer import NotFixable, propose_fix
-from sentinel.graph import build_graph
+from sentinel.graph import SCANNERS, build_graph
 from sentinel.llm.router import build_router
-from sentinel.models import TriagedIssue
+from sentinel.models import Finding, TriagedIssue
 from sentinel.policy import SEVERITY_ORDER, rank
+from sentinel.sandbox import SandboxError, verify_fix
 
 
 EXIT_OK, EXIT_ISSUES, EXIT_ERROR = 0, 1, 2
@@ -32,6 +33,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     fix.add_argument("--issue", type=int, required=True, help="issue number in the report (1 = first)")
     fix.add_argument("-o", "--output", type=Path, help="also write the patch to this file (UTF-8, for git apply)")
     fix.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
+    verify = commands.add_parser("verify", help="apply a patch to a copy of the repo in a sandbox, then re-scan it")
+    verify.add_argument("path", type=Path, help="the folder that was scanned")
+    verify.add_argument("--report", type=Path, required=True, help="JSON report written by `scan -o`")
+    verify.add_argument("--issue", type=int, required=True, help="issue number in the report (1 = first)")
+    verify.add_argument("--patch", type=Path, required=True, help="patch written by `fix -o`")
+    verify.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
 
     return parser.parse_args(argv)
 
@@ -63,13 +70,17 @@ def exit_code(issues: list[TriagedIssue], fail_on: str) -> int:
         return EXIT_ISSUES
     return EXIT_OK
 
+def load_issue(report: Path, number: int) -> tuple[TriagedIssue, list[Finding]]:
+    issues = [TriagedIssue.model_validate(item) for item in json.loads(report.read_text(encoding="utf-8"))]
+    if not 1 <= number <= len(issues):
+        raise ValueError(f"--issue must be between 1 and {len(issues)}")
+    return issues[number - 1], [f for issue in issues for f in issue.findings]
+
+
 def run_fix(args: argparse.Namespace) -> int:
     try:
-        issues = [TriagedIssue.model_validate(item) for item in json.loads(args.report.read_text(encoding="utf-8"))]
-        if not 1 <= args.issue <= len(issues):
-            raise ValueError(f"--issue must be between 1 and {len(issues)}")
-        patch = propose_fix(issues[args.issue - 1], args.path, build_router(Settings()),
-                            [f for issue in issues for f in issue.findings])
+        issue, all_findings = load_issue(args.report, args.issue)
+        patch = propose_fix(issue, args.path, build_router(Settings()), all_findings)
     except NotFixable as e:
         print(f"sentinel: issue {args.issue} is not fixed automatically: {e}", file=sys.stderr)
         return EXIT_ISSUES
@@ -87,6 +98,30 @@ def run_fix(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def run_verify(args: argparse.Namespace) -> int:
+    try:
+        issue, all_findings = load_issue(args.report, args.issue)
+        diff = args.patch.read_text(encoding="utf-8")
+        result = verify_fix(args.path, diff, issue, all_findings, SCANNERS)
+    except SandboxError as e:
+        print(f"sentinel: patch rejected: {e}", file=sys.stderr)
+        return EXIT_ISSUES
+    except Exception as e:
+        print(f"sentinel: verify failed: {type(e).__name__}: {e}", file=sys.stderr)
+        if args.verbose:
+            traceback.print_exc()
+        return EXIT_ERROR
+    print(f"sandbox: patch changes {', '.join(result.changed)}; re-scanned with {', '.join(result.scanners)}")
+    for f in result.still_there:
+        print(f"  still reported: {f.tool} {f.rule_id} at {f.file}:{f.line}")
+    for f in result.new:
+        print(f"  NEW: {f.tool} {f.rule_id} at {f.file}:{f.line}")
+    for problem in result.problems:
+        print(f"  problem: {problem}")
+    print("verified: the issue is gone and nothing new appeared" if result.verified else "NOT verified")
+    return EXIT_OK if result.verified else EXIT_ISSUES
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
@@ -94,6 +129,8 @@ def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     if args.command == "fix":
         return run_fix(args)
+    if args.command == "verify":
+        return run_verify(args)
 
     try:
         result = build_graph(build_router(Settings())).invoke({"path": str(args.path)})
