@@ -6,6 +6,7 @@ import traceback
 from pathlib import Path
 
 from sentinel.config import Settings
+from sentinel.fixer import NotFixable, propose_fix
 from sentinel.graph import build_graph
 from sentinel.llm.router import build_router
 from sentinel.models import TriagedIssue
@@ -25,6 +26,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                       help="exit code 1 if an issue is at least this severe (default: high)")
     scan.add_argument("-o", "--output", type=Path, help="also write the JSON report to this file (UTF-8)")
     scan.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
+    fix = commands.add_parser("fix", help="propose a patch for one issue of a JSON report (writes nothing)")
+    fix.add_argument("path", type=Path, help="the folder that was scanned")
+    fix.add_argument("--report", type=Path, required=True, help="JSON report written by `scan -o`")
+    fix.add_argument("--issue", type=int, required=True, help="issue number in the report (1 = first)")
+    fix.add_argument("-o", "--output", type=Path, help="also write the patch to this file (UTF-8, for git apply)")
+    fix.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
+
     return parser.parse_args(argv)
 
 
@@ -55,12 +63,38 @@ def exit_code(issues: list[TriagedIssue], fail_on: str) -> int:
         return EXIT_ISSUES
     return EXIT_OK
 
+def run_fix(args: argparse.Namespace) -> int:
+    try:
+        issues = [TriagedIssue.model_validate(item) for item in json.loads(args.report.read_text(encoding="utf-8"))]
+        if not 1 <= args.issue <= len(issues):
+            raise ValueError(f"--issue must be between 1 and {len(issues)}")
+        patch = propose_fix(issues[args.issue - 1], args.path, build_router(Settings()),
+                            [f for issue in issues for f in issue.findings])
+    except NotFixable as e:
+        print(f"sentinel: issue {args.issue} is not fixed automatically: {e}", file=sys.stderr)
+        return EXIT_ISSUES
+    except Exception as e:
+        print(f"sentinel: fix failed: {type(e).__name__}: {e}", file=sys.stderr)
+        if args.verbose:
+            traceback.print_exc()
+        return EXIT_ERROR
+    print(f"sentinel: {patch.summary} (by {patch.provider})", file=sys.stderr)
+    if not patch.diff:
+        return EXIT_ISSUES
+    if args.output:
+        args.output.write_text(patch.diff, encoding="utf-8", newline="")
+    print(patch.diff, end="")
+    return EXIT_OK
+
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                         format="%(levelname)s %(name)s: %(message)s")
     sys.stdout.reconfigure(encoding="utf-8")
+    if args.command == "fix":
+        return run_fix(args)
+
     try:
         result = build_graph(build_router(Settings())).invoke({"path": str(args.path)})
         findings, issues, failures = result["findings"], result["issues"], result["failures"]
