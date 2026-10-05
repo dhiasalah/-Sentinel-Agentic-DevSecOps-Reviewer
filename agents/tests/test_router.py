@@ -114,6 +114,27 @@ def test_groq_other_bad_requests_are_not_hidden():
         groq_raising("model_not_found").complete("sys", "user", json_mode=True)
 
 
+def groq_status(status):
+    body = {"error": {"message": "Request too large", "type": "tokens", "code": "rate_limit_exceeded"}}
+    response = httpx.Response(status, request=httpx.Request("POST", "https://groq.test"), json=body)
+
+    def create(**kwargs):
+        raise groq.APIStatusError(f"Error code: {status} - {body}", response=response, body=body)
+
+    provider = GroqProvider(api_key="test", model="m")
+    provider._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    return provider
+
+
+def test_groq_request_too_large_falls_back():
+    with pytest.raises(ProviderUnavailable):
+        groq_status(413).complete("sys", "user", json_mode=True)
+
+
+def test_groq_other_status_errors_are_not_hidden():
+    with pytest.raises(groq.APIStatusError):
+        groq_status(418).complete("sys", "user", json_mode=True)
+
 def test_repo_setting_picks_the_first_provider_and_keeps_the_other_as_fallback():
     from pydantic import SecretStr
 
