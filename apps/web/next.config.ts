@@ -1,11 +1,14 @@
 import type { NextConfig } from "next";
 
-// Sent with every response. No script-src yet: a strict CSP needs per-request nonces,
-// which comes with the authenticated pages.
+// The sign-in form redirects to Supabase, which redirects to GitHub: form-action must allow both hops.
+const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin : "";
+
+// Sent with every response. No script-src yet: a strict CSP needs per-request nonces.
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
-    value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+    value: `frame-ancestors 'none'; base-uri 'self'; form-action 'self' ${supabaseOrigin} https://github.com; object-src 'none'`
+      .replace(/\s+/g, " "),
   },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
