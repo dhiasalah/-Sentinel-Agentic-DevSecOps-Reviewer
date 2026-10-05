@@ -9,7 +9,6 @@ from sentinel.llm.providers import BadAnswer
 from sentinel.llm.router import LLMRouter
 from sentinel.models import Finding, TriagedIssue
 from sentinel.policy import looks_like_injection
-from sentinel.triage import read_snippet
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +70,7 @@ def read_source(root: Path, file: str) -> str:
     return text
 
 
-def check_fixable(issue: TriagedIssue, root: Path, all_findings: list[Finding]) -> None:
+def check_fixable(issue: TriagedIssue, all_findings: list[Finding]) -> None:
     if any(f.tool == "gitleaks" for f in issue.findings):
         raise NotFixable("leaked secrets must be rotated by a human; deleting them from code is not enough")
     files = {f.file for f in issue.findings}
@@ -79,8 +78,6 @@ def check_fixable(issue: TriagedIssue, root: Path, all_findings: list[Finding]) 
         raise NotFixable(f"{', '.join(leaked)} contains a leaked secret: rotate and remove it first")
     if issue.false_positive:
         raise NotFixable("the AI marked this issue as a false positive")
-    if any(looks_like_injection(read_snippet(root, f.file, f.line)) for f in issue.findings):
-        raise NotFixable("code near this issue addresses the AI (possible prompt injection)")
 
 
 def build_prompt(issue: TriagedIssue, sources: dict[str, str], tag: str) -> str:
@@ -141,8 +138,10 @@ def parse_fix(text: str, sources: dict[str, str], findings: list[Finding]) -> tu
 
 
 def propose_fix(issue: TriagedIssue, root: Path, router: LLMRouter, all_findings: list[Finding]) -> Patch:
-    check_fixable(issue, root, all_findings)
+    check_fixable(issue, all_findings)
     sources = {name: read_source(root, name) for name in dict.fromkeys(f.file for f in issue.findings)}
+    if leaked := sorted(name for name, text in sources.items() if looks_like_injection(text)):
+        raise NotFixable(f"{', '.join(leaked)} addresses the AI (possible prompt injection)")
     tag = secrets.token_hex(8)
     response = router.complete(
         system=SYSTEM_PROMPT.replace("__TAG__", tag),
