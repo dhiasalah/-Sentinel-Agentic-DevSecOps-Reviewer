@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sentinel.approvals import apply_approvals
 from sentinel.cli import DEFAULT_DB, render_text
 from sentinel.config import Settings
+from sentinel.fix_requests import run_fix_request
 from sentinel.github.comment import post_report
 from sentinel.github.scan_pr import scan_pr
 from sentinel.models import RepoSettings, ScanEvent, TriagedIssue
@@ -119,11 +120,15 @@ def main() -> None:
     if moved := requeue_stale(r):
         logger.warning("requeued %d unfinished job(s) from a previous run", moved)
     store = open_store(settings)
-    logger.info("worker ready, waiting for jobs on %s%s", QUEUE, " and dashboard decisions" if store else "")
+    if store and (moved := best_effort("requeue unfinished fix requests", store.requeue_working_fix_requests)):
+        logger.warning("requeued %d unfinished fix request(s) from a previous run", moved)
+    logger.info("worker ready, waiting for jobs on %s%s", QUEUE, ", dashboard decisions and fix requests" if store else "")
     while True:
         process_one(r, settings)
         if store:
             best_effort("apply dashboard decisions", apply_approvals, store, DEFAULT_DB, settings)
+            # One fix per loop: a scan waiting in the queue never sits behind a long line of fixes.
+            best_effort("run a requested fix", run_fix_request, store, DEFAULT_DB, settings)
 
 
 if __name__ == "__main__":

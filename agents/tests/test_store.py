@@ -105,3 +105,27 @@ def test_settings_row_is_parsed_and_a_bad_one_raises(monkeypatch):
     monkeypatch.setattr(store.httpx, "request", FakeSupabase(responses={("GET", "repo_settings"): [bad]}).request)
     with pytest.raises(ValueError):
         Store("https://x.supabase.co", "k").repo_settings(1)
+
+
+def test_a_fix_request_is_claimed_only_while_still_queued(monkeypatch):
+    fake = FakeSupabase(responses={("PATCH", "fix_requests"): [{"id": 3}]})
+    monkeypatch.setattr(store.httpx, "request", fake.request)
+    assert Store("https://x.supabase.co", "k").claim_fix_request(3)
+    call = fake.calls[0]
+    assert call["params"] == {"id": "eq.3", "status": "eq.queued"} and call["json"] == {"status": "working"}
+
+
+def test_a_fix_request_taken_by_someone_else_is_not_claimed(fake):
+    assert not Store("https://x.supabase.co", "k").claim_fix_request(3)
+
+
+def test_next_fix_request_asks_for_the_oldest_queued_one(fake):
+    assert Store("https://x.supabase.co", "k").next_fix_request() is None
+    params = fake.calls[0]["params"]
+    assert params["status"] == "eq.queued" and params["order"] == "requested_at" and params["limit"] == "1"
+
+
+def test_scan_findings_are_flattened(monkeypatch):
+    fake = FakeSupabase(responses={("GET", "issues"): [{"findings": [{"a": 1}]}, {"findings": [{"b": 2}, {"c": 3}]}]})
+    monkeypatch.setattr(store.httpx, "request", fake.request)
+    assert Store("https://x.supabase.co", "k").scan_findings(12) == [{"a": 1}, {"b": 2}, {"c": 3}]

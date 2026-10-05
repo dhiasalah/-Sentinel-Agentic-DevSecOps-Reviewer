@@ -2,7 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_SETTINGS } from "@/lib/types";
-import type { Approval, Fix, Issue, Repo, RepoSettings, Scan, ScanEvent, ScanStatus, Severity } from "@/lib/types";
+import type { Approval, Fix, FixRequest, Issue, Repo, RepoSettings, Scan, ScanEvent, ScanStatus, Severity } from "@/lib/types";
 
 // Every query runs as the signed-in user: row-level security decides what comes back.
 // A row that isn't yours simply doesn't exist from here, so pages answer 404, not 403.
@@ -64,6 +64,18 @@ export async function listIssues(scanId: number): Promise<Issue[]> {
     .order("id")
     .overrideTypes<Issue[], { merge: false }>();
   if (error) fail("issues", error);
+  return data;
+}
+
+export async function listFixRequests(issueIds: number[]): Promise<FixRequest[]> {
+  if (issueIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("fix_requests")
+    .select("issue_id, status, fix_id, requested_at, fix:fixes(status, pr_url)")
+    .in("issue_id", issueIds)
+    .overrideTypes<FixRequest[], { merge: false }>();
+  if (error) fail("fix requests", error);
   return data;
 }
 
