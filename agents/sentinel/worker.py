@@ -8,6 +8,7 @@ from sentinel.cli import render_text
 from sentinel.config import Settings
 from sentinel.github.comment import post_report
 from sentinel.github.scan_pr import scan_pr
+from sentinel.store import Store, open_store
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,24 @@ class Job(BaseModel):
     installation_id: int
 
 
+def best_effort(what: str, fn, *args):
+    try:
+        return fn(*args)
+    except Exception:
+        logger.warning("dashboard: could not %s", what, exc_info=True)
+        return None
+
+
+def start_scan_record(store: Store | None, job: Job) -> int | None:
+    if store is None:
+        return None
+    repo_id = best_effort("look up the repo", store.repo_id, job.repo)
+    if repo_id is None:
+        logger.info("%s is not linked to a dashboard user, results are not stored", job.repo)
+        return None
+    return best_effort("record the scan", store.start_scan, repo_id, job.pr, job.head_sha)
+
+
 def process_one(r: redis.Redis, settings: Settings, timeout: int = 5) -> bool:
     raw = r.blmove(QUEUE, PROCESSING, timeout, src="RIGHT", dest="LEFT")
     if raw is None:
@@ -31,7 +50,16 @@ def process_one(r: redis.Redis, settings: Settings, timeout: int = 5) -> bool:
     try:
         job = Job.model_validate_json(raw)
         logger.info("scanning %s#%d @ %s (delivery %s)", job.repo, job.pr, job.head_sha[:7], job.delivery)
-        issues, failures = scan_pr(job.repo, job.head_sha, job.installation_id, settings)
+        store = open_store(settings)
+        scan_id = start_scan_record(store, job)
+        try:
+            issues, failures = scan_pr(job.repo, job.head_sha, job.installation_id, settings)
+        except Exception:
+            if scan_id:
+                best_effort("mark the scan failed", store.fail_scan, scan_id)
+            raise
+        if scan_id:
+            best_effort("store the results", store.finish_scan, scan_id, issues, failures)
         finding_count = sum(len(i.findings) for i in issues)
         logger.info("%s#%d done, %d issue(s)\n%s", job.repo, job.pr, len(issues), render_text(issues, finding_count))
         for failure in failures:
