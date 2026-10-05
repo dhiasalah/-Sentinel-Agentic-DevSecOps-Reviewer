@@ -70,12 +70,11 @@ def read_source(root: Path, file: str) -> str:
     return text
 
 
-def check_fixable(issue: TriagedIssue, all_findings: list[Finding]) -> None:
+def check_fixable(issue: TriagedIssue) -> None:
+    # A file that also holds a leaked secret is still fixed: the repo owner accepts that the whole file,
+    # secret included, is sent to the AI provider (decided 2026-10-05). The secret itself is never "fixed".
     if any(f.tool == "gitleaks" for f in issue.findings):
         raise NotFixable("leaked secrets must be rotated by a human; deleting them from code is not enough")
-    files = {f.file for f in issue.findings}
-    if leaked := sorted({f.file for f in all_findings if f.tool == "gitleaks" and f.file in files}):
-        raise NotFixable(f"{', '.join(leaked)} contains a leaked secret: rotate and remove it first")
     if issue.false_positive:
         raise NotFixable("the AI marked this issue as a false positive")
 
@@ -138,7 +137,7 @@ def parse_fix(text: str, sources: dict[str, str], findings: list[Finding]) -> tu
 
 
 def propose_fix(issue: TriagedIssue, root: Path, router: LLMRouter, all_findings: list[Finding]) -> Patch:
-    check_fixable(issue, all_findings)
+    check_fixable(issue)
     sources = {name: read_source(root, name) for name in dict.fromkeys(f.file for f in issue.findings)}
     if leaked := sorted(name for name, text in sources.items() if looks_like_injection(text)):
         raise NotFixable(f"{', '.join(leaked)} addresses the AI (possible prompt injection)")
