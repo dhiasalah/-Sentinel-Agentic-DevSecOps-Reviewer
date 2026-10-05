@@ -3,6 +3,7 @@ import json
 from sentinel import cli
 from sentinel.cli import EXIT_ERROR, EXIT_ISSUES, EXIT_OK, exit_code, parse_args, render_json, render_text
 from sentinel.models import Finding, ScannerFailure, TriagedIssue
+from sentinel.fixer import Patch
 
 
 
@@ -52,3 +53,24 @@ def test_incomplete_scan_never_passes(monkeypatch, capsys):
     monkeypatch.setattr(cli, "build_graph", lambda router: FakeGraph())
     assert cli.main(["scan", "."]) == EXIT_ERROR
     assert "scanner semgrep failed (TimeoutExpired)" in capsys.readouterr().err
+
+def test_fix_prints_only_the_diff_on_stdout(monkeypatch, capsys, tmp_path):
+    report = tmp_path / "report.json"
+    report.write_text(render_json([make_issue()]), encoding="utf-8")
+    seen = {}
+
+    def fake_fix(issue, root, router, all_findings):
+        seen["title"] = issue.title
+        return Patch(summary="use a list", diff="--- a/app.py\n", provider="fake")
+
+    monkeypatch.setattr(cli, "Settings", lambda: None)
+    monkeypatch.setattr(cli, "build_router", lambda settings: None)
+    monkeypatch.setattr(cli, "propose_fix", fake_fix)
+    patch = tmp_path / "fix.patch"
+    assert cli.main(["fix", ".", "--report", str(report), "--issue", "1", "-o", str(patch)]) == EXIT_OK
+    assert patch.read_bytes() == b"--- a/app.py\n"
+    out = capsys.readouterr()
+    assert out.out == "--- a/app.py\n"
+    assert "use a list (by fake)" in out.err
+    assert seen["title"] == "Command injection"
+    assert cli.main(["fix", ".", "--report", str(report), "--issue", "2"]) == EXIT_ERROR
