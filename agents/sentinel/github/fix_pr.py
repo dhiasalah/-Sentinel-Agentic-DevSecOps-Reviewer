@@ -1,4 +1,7 @@
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 
 import httpx
 
@@ -86,3 +89,14 @@ def open_fix_pr(repo: str, pr: int, head_sha: str, diff: str, fix_id: str, summa
     push_fix(repo, head_sha, diff, branch, f"fix: {summary[:200]}\n\nSentinel {fix_id}, patch {patch_id}", bot, token)
     return create_pull(token, repo, current["head_ref"], branch, f"Sentinel fix for #{pr}",
                        render_body(pr, head_sha, summary, patch_id, approved_by))
+
+
+@contextmanager
+def checkout_pr(pr_ref: str, settings: Settings) -> Iterator[tuple[Path, dict]]:
+    repo, pr = parse_pr(pr_ref)
+    app_jwt = make_app_jwt(settings.github_app_id, load_private_key(settings.github_private_key_path))
+    token = get_installation_token(app_jwt, installation_id(app_jwt, repo), repo.split("/")[1],
+                                   {"contents": "read", "pull_requests": "read"})
+    head = get_pr(token, repo, pr)
+    with checkout_pr_head(repo, head["head_sha"], token) as path:
+        yield path, {"repo": repo, "pr": pr, "head_sha": head["head_sha"]}

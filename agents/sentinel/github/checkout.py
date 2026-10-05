@@ -45,6 +45,7 @@ def checkout_pr_head(repo: str, head_sha: str, token: str) -> Iterator[Path]:
         env = git_env(token)
         run_git(["init", "--quiet"], workdir, env)
         run_git(["config", "core.symlinks", "false"], workdir, env)
+        run_git(["config", "core.autocrlf", "false"], workdir, env)
         run_git(["remote", "add", "origin", f"https://github.com/{repo}.git"], workdir, env)
         run_git(["fetch", "--quiet", "--no-tags", "--depth", "1", "origin", head_sha], workdir, env)
         run_git(["checkout", "--quiet", "--detach", "FETCH_HEAD"], workdir, env)
