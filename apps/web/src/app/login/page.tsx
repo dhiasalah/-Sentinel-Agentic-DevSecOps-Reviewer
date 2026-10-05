@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { signInWithGitHub } from "@/app/auth/actions";
 import { GitHubMark } from "@/components/github-mark";
+import { SubmitButton } from "@/components/submit-button";
 import { Wordmark } from "@/components/wordmark";
 import { getViewer } from "@/lib/auth";
 
@@ -44,13 +45,18 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           )}
 
           <form action={signInWithGitHub} className="mt-8">
-            <button
-              type="submit"
+            <SubmitButton
+              pending={
+                <>
+                  <GitHubMark className="size-[18px]" />
+                  Opening GitHub…
+                </>
+              }
               className="inline-flex h-11 items-center gap-3 rounded-[4px] bg-ink px-5 font-medium text-paper transition-opacity hover:opacity-85"
             >
               <GitHubMark className="size-[18px]" />
               Continue with GitHub
-            </button>
+            </SubmitButton>
           </form>
 
           <p className="mt-10 border-t border-rule pt-5 text-[14px] text-muted">

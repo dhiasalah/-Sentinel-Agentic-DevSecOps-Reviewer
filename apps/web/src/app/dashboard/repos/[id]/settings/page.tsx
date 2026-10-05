@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { saveSettings } from "@/app/dashboard/repos/[id]/settings/actions";
 import { PageIntro, Section } from "@/components/page-intro";
 import { SeverityMark } from "@/components/severity";
+import { SubmitButton } from "@/components/submit-button";
 import { getRepo, getRepoSettings, parseId } from "@/lib/data";
 import { formatDateTime } from "@/lib/format";
 import { LLM_ORDERS, SCANNERS, SEVERITIES, type ScannerName } from "@/lib/types";
@@ -146,12 +147,12 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
 
         <Section title="Save">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-ink pt-6">
-            <button
-              type="submit"
+            <SubmitButton
+              pending="Saving…"
               className="inline-flex h-11 items-center justify-center rounded-[4px] bg-ink px-5 font-medium text-paper transition-opacity hover:opacity-85"
             >
               Save settings
-            </button>
+            </SubmitButton>
             <span className="text-[13px] text-muted">
               {settings.updated_at ? `Last changed ${formatDateTime(settings.updated_at)}` : "Using the defaults: every scanner, every issue."}
             </span>

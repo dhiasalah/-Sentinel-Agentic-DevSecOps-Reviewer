@@ -39,7 +39,7 @@ export function DiffView({ diff }: { diff: string }) {
     <div className="space-y-6">
       {parseDiff(diff).map((file) => (
         <figure key={file.name} className="overflow-hidden rounded-[6px] border border-rule bg-surface">
-          <figcaption className="border-b border-rule px-4 py-3 font-mono text-[12px]">{file.name}</figcaption>
+          <figcaption className="border-b border-rule px-4 py-3 font-mono text-[12px] [overflow-wrap:anywhere]">{file.name}</figcaption>
           <div className="overflow-x-auto py-1 font-mono text-[12.5px] leading-[1.75]">
             <table className="w-full border-collapse">
               <tbody>

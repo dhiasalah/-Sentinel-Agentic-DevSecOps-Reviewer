@@ -45,7 +45,7 @@ export default async function DashboardPage() {
                     href={`/dashboard/repos/${repo.id}`}
                     className="group flex flex-col gap-1 py-4 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <span className="font-mono text-[14px] underline-offset-4 group-hover:underline">{repo.full_name}</span>
+                    <span className="font-mono text-[14px] underline-offset-4 [overflow-wrap:anywhere] group-hover:underline">{repo.full_name}</span>
                     <span className="flex items-center gap-3 text-[13px] text-muted">
                       {scan ? (
                         <>
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
                   href={`/dashboard/fixes/${fix.id}`}
                   className="group flex flex-col gap-1 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <span className="underline-offset-4 group-hover:underline">{fix.issue_title}</span>
+                  <span className="underline-offset-4 [overflow-wrap:anywhere] group-hover:underline">{fix.issue_title}</span>
                   <span className="text-[13px] text-muted">
                     <span className="font-mono">{fix.repo.full_name}</span> · PR #{fix.pr} · {formatRelative(fix.created_at, now)}
                   </span>

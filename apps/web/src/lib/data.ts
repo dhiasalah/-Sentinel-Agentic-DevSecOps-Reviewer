@@ -115,6 +115,19 @@ export async function getApproval(fixId: string): Promise<Approval | null> {
   return data;
 }
 
+// The scan a fix was requested from, so the fix page can link back to it. Null for fixes made with the CLI.
+export async function getFixScanId(fixId: string): Promise<number | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("fix_requests")
+    .select("issue:issues(scan_id)")
+    .eq("fix_id", fixId)
+    .maybeSingle()
+    .overrideTypes<{ issue: { scan_id: number } | null } | null, { merge: false }>();
+  if (error) fail("the fix's scan", error);
+  return data?.issue?.scan_id ?? null;
+}
+
 export function isFixId(raw: string): boolean {
   return /^fix-[0-9a-f]{8}$/.test(raw);
 }

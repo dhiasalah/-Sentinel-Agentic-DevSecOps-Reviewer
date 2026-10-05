@@ -47,6 +47,16 @@ body {
   color: var(--ink);
 }
 
+/* Tailwind v4 resets buttons to the default arrow cursor. Anything you can press shows the hand. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  label:has(> input:not(:disabled)) {
+    cursor: pointer;
+  }
+}
+
 ::selection {
   background: var(--signal-soft);
   color: var(--ink);
