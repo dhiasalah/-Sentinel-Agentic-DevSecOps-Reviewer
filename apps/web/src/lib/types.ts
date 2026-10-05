@@ -70,3 +70,40 @@ export type Approval = {
   reason: string;
   decided_at: string;
 };
+
+export type ScanEventStage = "checkout" | "plan" | "scanner" | "triage" | "report";
+export type ScanEventStatus = "started" | "ok" | "failed" | "skipped";
+
+// One step of a scan, written by the worker. Only fixed words and numbers: nothing a model or a PR wrote.
+export type ScanEvent = {
+  id: number;
+  stage: ScanEventStage;
+  status: ScanEventStatus;
+  scanner: string | null;
+  count: number | null;
+  at: string;
+};
+
+export const SCANNERS = ["gitleaks", "semgrep", "trivy", "checkov"] as const;
+export type ScannerName = (typeof SCANNERS)[number];
+
+export const LLM_ORDERS = [
+  ["gemini", "groq"],
+  ["groq", "gemini"],
+] as const;
+export type LlmOrder = (typeof LLM_ORDERS)[number];
+
+export type RepoSettings = {
+  scanners: ScannerName[];
+  report_min_severity: Severity;
+  llm_order: LlmOrder;
+  updated_at: string | null;
+};
+
+// Same defaults as the database and the worker: when in doubt, scan everything and report everything.
+export const DEFAULT_SETTINGS: RepoSettings = {
+  scanners: [...SCANNERS],
+  report_min_severity: "info",
+  llm_order: LLM_ORDERS[0],
+  updated_at: null,
+};
