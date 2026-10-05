@@ -92,3 +92,50 @@ def test_partial_scan_still_posts_the_failure(r, monkeypatch):
     worker.process_one(r, settings=None, timeout=1)
     assert sent[0][6] == [failure]
     assert lengths(r) == (0, 0, 0)
+
+
+class FakeStore:
+    def __init__(self, repo_id=1, broken=False):
+        self.repo, self.broken, self.calls = repo_id, broken, []
+
+    def repo_id(self, full_name):
+        if self.broken:
+            raise RuntimeError("supabase is down")
+        return self.repo
+
+    def start_scan(self, repo_id, pr, head_sha):
+        self.calls.append(("start", repo_id, pr))
+        return 42
+
+    def finish_scan(self, scan_id, issues, failures):
+        self.calls.append(("finish", scan_id, len(issues)))
+
+    def fail_scan(self, scan_id):
+        self.calls.append(("fail", scan_id))
+
+
+def test_results_are_stored_for_a_linked_repo(r, monkeypatch, posted):
+    fake = FakeStore()
+    monkeypatch.setattr(worker, "open_store", lambda settings: fake)
+    monkeypatch.setattr(worker, "scan_pr", lambda *a: ([], []))
+    r.lpush(worker.QUEUE, JOB)
+    worker.process_one(r, settings=None, timeout=1)
+    assert fake.calls == [("start", 1, 7), ("finish", 42, 0)] and posted == [("o/r", 7)]
+
+
+def test_a_failed_scan_is_marked_failed(r, monkeypatch):
+    fake = FakeStore()
+    monkeypatch.setattr(worker, "open_store", lambda settings: fake)
+    monkeypatch.setattr(worker, "scan_pr", lambda *a: (_ for _ in ()).throw(RuntimeError("git fetch failed")))
+    r.lpush(worker.QUEUE, JOB)
+    worker.process_one(r, settings=None, timeout=1)
+    assert fake.calls == [("start", 1, 7), ("fail", 42)] and lengths(r) == (0, 0, 1)
+
+
+@pytest.mark.parametrize("fake", [FakeStore(repo_id=None), FakeStore(broken=True)])
+def test_an_unlinked_repo_or_a_down_database_never_blocks_the_comment(r, monkeypatch, posted, fake):
+    monkeypatch.setattr(worker, "open_store", lambda settings: fake)
+    monkeypatch.setattr(worker, "scan_pr", lambda *a: ([], []))
+    r.lpush(worker.QUEUE, JOB)
+    worker.process_one(r, settings=None, timeout=1)
+    assert fake.calls == [] and posted == [("o/r", 7)] and lengths(r) == (0, 0, 0)

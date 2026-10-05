@@ -12,3 +12,5 @@ class Settings(BaseSettings):
     github_app_id: int | None = None
     github_private_key_path: Path | None = None
     redis_url: str = "redis://localhost:6379/0"
+    supabase_url: str | None = None
+    supabase_secret_key: SecretStr | None = None
