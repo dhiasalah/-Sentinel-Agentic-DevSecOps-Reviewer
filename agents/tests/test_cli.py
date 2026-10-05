@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from sentinel import cli
 from sentinel.cli import EXIT_ERROR, EXIT_ISSUES, EXIT_OK, exit_code, parse_args, render_json, render_text
 from sentinel.models import Finding, ScannerFailure, TriagedIssue
@@ -98,3 +100,31 @@ def test_verify_exit_code_follows_the_sandbox_verdict(monkeypatch, capsys, tmp_p
     assert "problem: app.py no longer parses" in capsys.readouterr().out
     assert cli.main(args) == EXIT_ISSUES
     assert "patch rejected: patch does not apply" in capsys.readouterr().err
+
+
+def test_propose_then_approve_from_another_command(monkeypatch, capsys, tmp_path):
+    from sentinel import fix_graph
+
+    report = tmp_path / "report.json"
+    report.write_text(render_json([make_issue()]), encoding="utf-8")
+    monkeypatch.setattr(cli, "Settings", lambda: None)
+    monkeypatch.setattr(cli, "build_router", lambda settings: None)
+    monkeypatch.setattr(fix_graph, "propose_fix", lambda *args: Patch(summary="s", diff="-a\n+b\n", provider="fake"))
+    monkeypatch.setattr(fix_graph, "verify_fix", lambda *args: Verification(changed=["app.py"], scanners=["semgrep"]))
+    db = ["--db", str(tmp_path / "approvals.sqlite")]
+
+    assert cli.main(["propose", ".", "--report", str(report), "--issue", "1", *db]) == EXIT_OK
+    out = capsys.readouterr()
+    assert out.out == "-a\n+b\n"
+    fix_id, pid = out.err.split("fix ")[1].split()[0], out.err.split("Patch id: ")[1].split()[0]
+    assert cli.main(["review", fix_id, "--approve", pid, *db]) == EXIT_OK
+    assert f"fix {fix_id} approved by " in capsys.readouterr().err
+    assert cli.main(["review", fix_id, "--reject", *db]) == EXIT_OK
+    assert "not waiting for a decision" in capsys.readouterr().err
+    assert cli.main(["review", "fix-unknown", *db]) == EXIT_ERROR
+
+
+@pytest.mark.parametrize("argv", [["propose"], ["propose", ".", "--pr", "o/r#1"]])
+def test_propose_needs_a_folder_or_a_pr(argv):
+    with pytest.raises(SystemExit):
+        parse_args([*argv, "--report", "r.json", "--issue", "1"])

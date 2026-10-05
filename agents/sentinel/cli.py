@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 import traceback
+from contextlib import nullcontext
 from pathlib import Path
 import getpass
 import secrets
@@ -10,6 +11,7 @@ from langgraph.types import Command, StateSnapshot
 from sentinel.config import Settings
 from sentinel.fix_graph import Decision, build_fix_graph, open_checkpoints
 from sentinel.fixer import NotFixable, propose_fix
+from sentinel.github.fix_pr import checkout_pr
 from sentinel.graph import SCANNERS, build_graph
 from sentinel.llm.router import build_router
 from sentinel.models import Finding, TriagedIssue
@@ -43,7 +45,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     verify.add_argument("--patch", type=Path, required=True, help="patch written by `fix -o`")
     verify.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
     propose = commands.add_parser("propose", help="fix one issue, verify it in the sandbox, then wait for a human")
-    propose.add_argument("path", type=Path, help="the folder that was scanned")
+    propose.add_argument("path", type=Path, nargs="?", help="the folder that was scanned (or use --pr)")
+    propose.add_argument("--pr", help="owner/repo#12: fix the head of this GitHub PR instead of a local folder")
     propose.add_argument("--report", type=Path, required=True, help="JSON report written by `scan -o`")
     propose.add_argument("--issue", type=int, required=True, help="issue number in the report (1 = first)")
     propose.add_argument("--db", type=Path, default=DEFAULT_DB, help="where paused fixes are saved")
@@ -56,7 +59,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     review.add_argument("--reason", default="", help="why you reject it")
     review.add_argument("--db", type=Path, default=DEFAULT_DB, help="where paused fixes are saved")
     review.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.command == "propose" and (args.path is None) == (args.pr is None):
+        parser.error("propose needs a folder or --pr (one of them, not both)")
+    return args
 
 
 def render_text(issues: list[TriagedIssue], finding_count: int) -> str:
@@ -162,6 +168,8 @@ def show_fix(fix_id: str, state: StateSnapshot) -> int:
     who = f" by {values['decided_by']} at {values['decided_at']}" if "decided_by" in values else ""
     why = f": {values['reason']}" if values.get("reason") else ""
     print(f"sentinel: fix {fix_id} {status}{who}{why}", file=sys.stderr)
+    if values.get("pr_url"):
+        print(f"sentinel: fix PR opened: {values['pr_url']}", file=sys.stderr)
     return EXIT_OK if status == "approved" else EXIT_ISSUES
 
 
@@ -170,9 +178,12 @@ def run_propose(args: argparse.Namespace) -> int:
     config = {"configurable": {"thread_id": fix_id}}
     try:
         issue, all_findings = load_issue(args.report, args.issue)
-        with open_checkpoints(args.db) as saver:
-            graph = build_fix_graph(build_router(Settings()), saver)
-            graph.invoke({"path": str(args.path), "issue": issue, "all_findings": all_findings}, config)
+        settings = Settings()
+        where = checkout_pr(args.pr, settings) if args.pr else nullcontext((args.path, None))
+        with open_checkpoints(args.db) as saver, where as (path, target):
+            graph = build_fix_graph(build_router(settings), saver, settings)
+            target = target and {**target, "fix_id": fix_id}
+            graph.invoke({"path": str(path), "issue": issue, "all_findings": all_findings, "target": target}, config)
             return show_fix(fix_id, graph.get_state(config))
     except Exception as e:
         print(f"sentinel: propose failed: {type(e).__name__}: {e}", file=sys.stderr)
@@ -184,8 +195,9 @@ def run_propose(args: argparse.Namespace) -> int:
 def run_review(args: argparse.Namespace) -> int:
     config = {"configurable": {"thread_id": args.id}}
     try:
+        settings = Settings()
         with open_checkpoints(args.db) as saver:
-            graph = build_fix_graph(build_router(Settings()), saver)
+            graph = build_fix_graph(build_router(settings), saver, settings)
             state = graph.get_state(config)
             if (args.approve or args.reject) and not state.interrupts:
                 print(f"sentinel: fix {args.id} is not waiting for a decision", file=sys.stderr)

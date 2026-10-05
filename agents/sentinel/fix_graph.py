@@ -12,7 +12,9 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 from pydantic import BaseModel, Field, ValidationError
 
+from sentinel.config import Settings
 from sentinel.fixer import NotFixable, Patch, propose_fix
+from sentinel.github.fix_pr import PRMoved, open_fix_pr
 from sentinel.graph import SCANNERS
 from sentinel.llm.router import LLMRouter
 from sentinel.models import Finding, TriagedIssue
@@ -34,6 +36,8 @@ class FixState(TypedDict, total=False):
     reason: str
     decided_by: str
     decided_at: str
+    target: dict | None
+    pr_url: str
 
 
 class Decision(BaseModel):
@@ -59,7 +63,11 @@ def stop_or(next_node: str):
     return lambda state: END if state.get("status") else next_node
 
 
-def build_fix_graph(router: LLMRouter, checkpointer: SqliteSaver):
+def after_approval(state: FixState) -> str:
+    return "open_pr" if state["status"] == "approved" and state.get("target") else END
+
+
+def build_fix_graph(router: LLMRouter, checkpointer: SqliteSaver, settings: Settings | None = None):
     def fix(state: FixState) -> dict:
         try:
             patch = propose_fix(state["issue"], Path(state["path"]), router, state["all_findings"])
@@ -101,12 +109,23 @@ def build_fix_graph(router: LLMRouter, checkpointer: SqliteSaver):
             return {**decided, "status": "approved"}
         return {**decided, "status": "rejected", "reason": answer.reason or "rejected by a human"}
 
+    def open_pr(state: FixState) -> dict:
+        target, patch = state["target"], state["patch"]
+        try:
+            url = open_fix_pr(target["repo"], target["pr"], target["head_sha"], patch.diff, target["fix_id"],
+                              patch.summary, patch_id(patch.diff), state["decided_by"], settings)
+        except PRMoved as e:
+            return {"status": "outdated", "reason": str(e)}
+        return {"pr_url": url}
+
     graph = StateGraph(FixState)
     graph.add_node("fix", fix)
     graph.add_node("verify", verify)
     graph.add_node("approval", approval)
+    graph.add_node("open_pr", open_pr)
     graph.add_edge(START, "fix")
     graph.add_conditional_edges("fix", stop_or("verify"), ["verify", END])
     graph.add_conditional_edges("verify", stop_or("approval"), ["approval", END])
-    graph.add_edge("approval", END)
+    graph.add_conditional_edges("approval", after_approval, ["open_pr", END])
+    graph.add_edge("open_pr", END)
     return graph.compile(checkpointer=checkpointer)
