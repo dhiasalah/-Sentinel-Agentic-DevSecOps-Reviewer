@@ -16,7 +16,9 @@ class LLMResponse(BaseModel):
 
 
 class AllProvidersFailed(Exception):
-    pass
+    def __init__(self, message: str, errors: list[Exception] | None = None):
+        super().__init__(message)
+        self.errors = errors or []
 
 
 class LLMRouter:
@@ -25,7 +27,7 @@ class LLMRouter:
 
     def complete(self, system: str, user: str, json_mode: bool = False,
                  check: Callable[[str], object] | None = None) -> LLMResponse:
-        failures = []
+        failures, errors = [], []
         for provider in self._providers:
             try:
                 text = provider.complete(system, user, json_mode=json_mode)
@@ -35,7 +37,8 @@ class LLMRouter:
             except (ProviderUnavailable, BadAnswer) as e:
                 log.warning("provider %s failed (%s: %s), falling back", provider.name, type(e).__name__, e)
                 failures.append(f"{provider.name}: {e}")
-        raise AllProvidersFailed("; ".join(failures))
+                errors.append(e)
+        raise AllProvidersFailed("; ".join(failures), errors)
 
 
 def build_router(settings: Settings, order: Sequence[str] = ("gemini", "groq")) -> LLMRouter:

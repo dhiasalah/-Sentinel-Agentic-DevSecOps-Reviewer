@@ -34,6 +34,7 @@ class FixState(TypedDict, total=False):
     verification: Verification
     status: str
     reason: str
+    reason_code: str
     decided_by: str
     decided_at: str
     target: dict | None
@@ -72,9 +73,9 @@ def build_fix_graph(router: LLMRouter, checkpointer: SqliteSaver, settings: Sett
         try:
             patch = propose_fix(state["issue"], Path(state["path"]), router, state["all_findings"])
         except NotFixable as e:
-            return {"status": "refused", "reason": str(e)}
+            return {"status": "refused", "reason": str(e), "reason_code": e.code}
         if not patch.diff:
-            return {"patch": patch, "status": "no_fix", "reason": patch.summary}
+            return {"patch": patch, "status": "no_fix", "reason": patch.summary, "reason_code": "model_declined"}
         return {"patch": patch}
 
     def verify(state: FixState) -> dict:
@@ -82,9 +83,11 @@ def build_fix_graph(router: LLMRouter, checkpointer: SqliteSaver, settings: Sett
             result = verify_fix(Path(state["path"]), state["patch"].diff, state["issue"],
                                 state["all_findings"], SCANNERS)
         except SandboxError as e:
-            return {"status": "not_verified", "reason": str(e)}
+            return {"status": "not_verified", "reason": str(e), "reason_code": "patch_rejected"}
         if not result.verified:
-            return {"verification": result, "status": "not_verified", "reason": "the sandbox did not verify the patch"}
+            code = "new_findings" if result.new else "still_reported" if result.still_there else "broken_patch"
+            return {"verification": result, "status": "not_verified", "reason": "the sandbox did not verify the patch",
+                    "reason_code": code}
         return {"verification": result}
 
     def approval(state: FixState) -> dict:

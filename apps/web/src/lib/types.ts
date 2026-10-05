@@ -78,6 +78,7 @@ export type FixRequest = {
   issue_id: number;
   status: FixRequestStatus;
   fix_id: string | null;
+  reason: string | null;
   requested_at: string;
   fix: { status: FixStatus; pr_url: string | null } | null;
 };

@@ -7,6 +7,25 @@ import type { FixRequest, Issue } from "@/lib/types";
 const BUTTON =
   "inline-flex h-9 items-center justify-center rounded-[4px] border border-ink/20 bg-surface px-4 text-[13px] font-medium transition-colors hover:border-ink/50";
 
+// The worker stores a fixed word; each one becomes a sentence here. Unknown words fall back to the status's sentence.
+const REASONS: Record<string, string> = {
+  secret: "This issue is the secret itself. Rotate it, then remove it from the code.",
+  false_positive: "The AI marked this as a false positive, so there is nothing to patch.",
+  prompt_injection: "This file contains text aimed at the AI (possible prompt injection), so it is never sent for a fix. Fix it by hand.",
+  too_large: "This file is too large to send for a fix.",
+  not_a_file: "The finding does not point to a file in the repository.",
+  model_declined: "The AI found no safe change in the code for this issue.",
+  patch_rejected: "The patch was rejected before testing: it did not apply cleanly or touched other files.",
+  new_findings: "The sandbox re-scan found new problems in the patch, so it was thrown away.",
+  still_reported: "The scanners still report the issue after the patch, so it was thrown away.",
+  broken_patch: "The patched code failed the sandbox checks (for example a syntax error), so it was thrown away.",
+  ai_unavailable: "Both AI providers are busy or out of quota. Try again in a few minutes.",
+  ai_bad_answer: "The AI's patches broke Sentinel's safety rules (for example, changing code far from the issue), so they were rejected.",
+  error: "Something failed on Sentinel's side (GitHub or the worker). Nothing was changed.",
+};
+
+const why = (request: FixRequest, fallback: string) => (request.reason && REASONS[request.reason]) || fallback;
+
 // The same rules as the database policy, so the page never offers a button the database would refuse.
 export function whyNotFixable(issue: Issue): string | null {
   if (issue.findings.some((f) => f.tool === "gitleaks")) return "Leaked secrets are not fixed automatically: rotate the secret first.";
@@ -39,13 +58,13 @@ export function FixPanel({ scanId, issue, request }: { scanId: number; issue: Is
     case "waiting":
       return <Proposed request={request} />;
     case "refused":
-      return <Line tone="muted">Sentinel refused to patch this automatically. It needs a person.</Line>;
+      return <Line tone="muted">{why(request, "Sentinel refused to patch this automatically. It needs a person.")}</Line>;
     case "no_fix":
-      return <Retry scanId={scanId} issueId={issue.id}>The model found no safe change for this issue.</Retry>;
+      return <Retry scanId={scanId} issueId={issue.id}>{why(request, "The AI found no safe change for this issue.")}</Retry>;
     case "not_verified":
-      return <Retry scanId={scanId} issueId={issue.id}>The draft did not pass the sandbox re-scan, so it was thrown away.</Retry>;
+      return <Retry scanId={scanId} issueId={issue.id}>{why(request, "The draft did not pass the sandbox re-scan, so it was thrown away.")}</Retry>;
     case "failed":
-      return <Retry scanId={scanId} issueId={issue.id}>The fix could not be made (AI quota or GitHub). Nothing was changed.</Retry>;
+      return <Retry scanId={scanId} issueId={issue.id}>{why(request, "The fix could not be made. Nothing was changed.")}</Retry>;
   }
 }
 
