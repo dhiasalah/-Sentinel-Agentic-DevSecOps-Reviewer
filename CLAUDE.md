@@ -21,6 +21,9 @@ Go fast on the basics, go deep on AI / DevOps / security / deployment.
    itself, with real design care (no generic "vibe-coded" look). Frontend lessons explain *what was built and why*
    (structure, concepts, security) and list only the non-code tasks for the student (accounts, dashboards, env vars,
    running and checking). No copy-paste snippets for frontend tasks.
+   **Exception — Week 8 (all parts: worker, schema, web; requested by the student 2026-10-05):** Claude writes and tests
+   the Week 8 code itself, like weeks 7.3–7.6. Lessons explain what was built and why and list the student's non-code tasks.
+   Weeks 9–10 go back to the mentor rule unless the student asks again.
 2. **Code in parts, never whole files.** Give complete, working snippets (a function, a route, a Dockerfile block, a config section), one piece at a time. For each snippet:
    - say **where it goes**: file path + "add at the top / under X / replace Y";
    - follow it with **one short paragraph**: what it does and why it is written this way.
