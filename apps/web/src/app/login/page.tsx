@@ -22,7 +22,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-6xl flex-col px-5 sm:px-8">
-      <header className="flex items-center justify-between border-b border-rule py-5">
+      <header className="flex items-center justify-between py-6">
         <Link href="/" aria-label="Sentinel home">
           <Wordmark />
         </Link>
@@ -32,8 +32,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <p className="font-mono text-[12px] tracking-[0.08em] text-muted uppercase lg:col-span-3 lg:pt-2">Sign in</p>
 
         <div className="max-w-md lg:col-span-6">
-          <h1 className="text-[28px] leading-tight font-semibold tracking-[-0.01em]">Sign in to the dashboard</h1>
-          <p className="mt-3 text-muted">
+          <h1 className="font-serif text-[40px] leading-[1.05] tracking-[-0.02em]">Sign in to the dashboard</h1>
+          <p className="mt-4 text-[16px] text-muted">
             Use your GitHub account. Sentinel reads your public profile and email address, nothing else.
           </p>
 
@@ -46,7 +46,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <form action={signInWithGitHub} className="mt-8">
             <button
               type="submit"
-              className="inline-flex h-11 items-center gap-3 bg-ink px-5 font-medium text-paper transition-opacity hover:opacity-85"
+              className="inline-flex h-11 items-center gap-3 rounded-[4px] bg-ink px-5 font-medium text-paper transition-opacity hover:opacity-85"
             >
               <GitHubMark className="size-[18px]" />
               Continue with GitHub

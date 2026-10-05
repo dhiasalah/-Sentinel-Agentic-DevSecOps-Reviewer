@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PatchSpecimen } from "@/components/patch-specimen";
 import { Wordmark } from "@/components/wordmark";
 
 const REPO_URL = "https://github.com/dhiasalah/-Sentinel-Agentic-DevSecOps-Reviewer";
@@ -45,51 +46,68 @@ const stages = [
 export default function Home() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-6xl flex-col px-5 sm:px-8">
-      <header className="flex items-center justify-between border-b border-rule py-5">
+      <header className="flex items-center justify-between py-6">
         <Wordmark />
-        <nav className="flex items-center gap-6 font-mono text-[13px]">
+        <nav className="flex items-center gap-7 text-[14px]">
           <a href={REPO_URL} className="hidden text-muted transition-colors hover:text-ink sm:inline">
-            Source on GitHub
+            Source
           </a>
-          <Link href="/login" className="text-ink underline-offset-4 hover:underline">
+          <Link
+            href="/login"
+            className="rounded-[4px] border border-ink/15 bg-surface px-3.5 py-1.5 font-medium transition-colors hover:border-ink/40"
+          >
             Sign in
           </Link>
         </nav>
       </header>
 
       <main className="flex-1">
-        <section className="grid gap-8 py-16 sm:py-24 lg:grid-cols-12">
-          <p className="font-mono text-[12px] tracking-[0.08em] text-muted uppercase lg:col-span-3 lg:pt-3">
-            Pull request security review
-          </p>
-          <div className="lg:col-span-9">
-            <h1 className="max-w-[22ch] text-[clamp(2rem,4.6vw,3.4rem)] leading-[1.08] font-semibold tracking-[-0.02em] text-balance">
-              Scanners find the problem. A model explains it and drafts a fix. A person decides.
+        <section className="grid items-center gap-14 pt-14 pb-20 sm:pt-20 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:pb-28">
+          <div>
+            <p className="font-mono text-[12px] tracking-[0.08em] text-muted uppercase">Pull request security review</p>
+            <h1 className="mt-5 font-serif text-[clamp(2.4rem,5.2vw,4rem)] leading-[1.02] font-normal tracking-[-0.02em] text-balance">
+              Every fix is <em className="text-signal">proposed</em> by a model and <em>decided</em> by a person.
             </h1>
-            <p className="mt-6 max-w-[62ch] text-[17px] text-pretty text-muted">
-              Sentinel reviews every pull request on the repositories it is installed on. It posts one report per
-              pull request, proposes a minimal patch for an issue, tests that patch in isolation, and opens a fix
-              pull request only after someone approves the exact diff.
+            <p className="mt-7 max-w-[52ch] text-[17px] leading-[1.65] text-pretty text-muted">
+              Sentinel reviews the pull requests of the repositories it is installed on. It explains what the scanners
+              found, drafts a minimal patch, tests it in isolation, and opens a fix pull request only after someone
+              approves the exact diff.
             </p>
+            <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
+              <Link
+                href="/login"
+                className="inline-flex h-11 items-center rounded-[4px] bg-ink px-5 font-medium text-paper transition-opacity hover:opacity-85"
+              >
+                Open the dashboard
+              </Link>
+              <a href="#how" className="text-[15px] underline decoration-rule underline-offset-[6px] hover:decoration-ink">
+                How a finding becomes a fix
+              </a>
+            </div>
           </div>
+
+          <PatchSpecimen />
         </section>
 
-        <section className="border-t border-ink pb-20">
-          <div className="grid gap-x-8 gap-y-2 py-5 lg:grid-cols-12">
-            <h2 className="font-mono text-[12px] tracking-[0.08em] uppercase lg:col-span-3">
-              From finding to fix
+        <section id="how" className="scroll-mt-8 border-t border-ink pb-24">
+          <div className="grid gap-x-8 gap-y-3 pt-8 pb-6 lg:grid-cols-12">
+            <h2 className="font-serif text-[30px] leading-tight tracking-[-0.01em] text-balance lg:col-span-5">
+              From finding to fix, in six checked steps
             </h2>
-            <p className="text-muted lg:col-span-9">Six stages. Each one has a check that can stop the run.</p>
+            <p className="max-w-[52ch] text-muted lg:col-span-6 lg:col-start-7 lg:pt-2">
+              Each step can stop the run. Nothing reaches your repository without passing all of them, and the last
+              word is always yours.
+            </p>
           </div>
 
           <ol>
             {stages.map((stage, i) => (
-              <li key={stage.name} className="grid gap-x-8 gap-y-2 border-t border-rule py-6 lg:grid-cols-12">
+              <li key={stage.name} className="grid gap-x-8 gap-y-2 border-t border-rule py-7 lg:grid-cols-12">
                 <div className="flex items-baseline gap-4 lg:col-span-3">
                   <span className="font-mono text-[12px] text-muted tabular-nums">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="font-medium">{stage.name}</h3>
+                  <h3 className="font-serif text-[21px] leading-none">{stage.name}</h3>
                 </div>
                 <p className="lg:col-span-5">{stage.does}</p>
                 <p className="border-l-2 border-signal pl-4 text-[14px] text-muted lg:col-span-4">{stage.guard}</p>
@@ -99,7 +117,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="flex flex-col gap-2 border-t border-rule py-6 font-mono text-[12px] text-muted sm:flex-row sm:justify-between">
+      <footer className="flex flex-col gap-2 border-t border-rule py-7 text-[13px] text-muted sm:flex-row sm:justify-between">
         <span>A learning project in agents, DevOps and security.</span>
         <a href={REPO_URL} className="transition-colors hover:text-ink">
           Source on GitHub
