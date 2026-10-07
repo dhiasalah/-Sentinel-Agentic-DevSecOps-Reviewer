@@ -4,3 +4,6 @@ output "availability_domains" {
 output "subnet_id" {
   value = oci_core_subnet.public.id
 }
+output "server_public_ip" {
+  value = oci_core_instance.server.public_ip
+}
