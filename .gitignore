@@ -17,3 +17,9 @@ lessons/
 PROGRESS.md
 .sentinel/
 sentinel-project.md
+# Terraform: plugins, state (contains secrets) and your personal values
+infra/terraform/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
