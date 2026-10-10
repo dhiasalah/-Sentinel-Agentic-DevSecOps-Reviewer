@@ -8,3 +8,8 @@ variable "location" {
   type        = string
   default     = "northcentralus"
 }
+
+variable "ssh_allowed_cidr" {
+  description = "Only this address may open SSH (port 22). Your public IP + /32"
+  type        = string
+}
