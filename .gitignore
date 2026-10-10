@@ -23,3 +23,4 @@ infra/terraform/.terraform/
 *.tfstate.*
 *.tfvars
 crash.log
+oracle-retry-log.txt
