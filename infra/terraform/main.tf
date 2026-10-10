@@ -1,9 +1,7 @@
-provider "oci" {
-  region              = var.region
-  config_file_profile = "DEFAULT"
+provider "azurerm" {
+  features {}
+  subscription_id = var.subscription_id
 }
 
-# Read-only question: "which data centres (availability domains) does my account have here?"
-data "oci_identity_availability_domains" "ads" {
-  compartment_id = var.tenancy_ocid
-}
+# Read-only question: "what is this subscription called?"
+data "azurerm_subscription" "current" {}
