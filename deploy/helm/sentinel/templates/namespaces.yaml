@@ -1,0 +1,17 @@
+# sentinel: API and Redis. sentinel-scans: the worker and every scanner Job.
+# Scanners live in their own namespace so the worker's permissions stay in one place.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sentinel
+  labels:
+    app.kubernetes.io/part-of: sentinel
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sentinel-scans
+  labels:
+    app.kubernetes.io/part-of: sentinel
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

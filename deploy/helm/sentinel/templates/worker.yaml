@@ -1,0 +1,166 @@
+# The worker and the permissions it needs. It creates scanner Jobs, and nothing else in the cluster.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: worker
+  namespace: sentinel-scans
+  labels:
+    app.kubernetes.io/part-of: sentinel
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: scan-jobs
+  namespace: sentinel-scans
+  labels:
+    app.kubernetes.io/part-of: sentinel
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: worker-scan-jobs
+  namespace: sentinel-scans
+  labels:
+    app.kubernetes.io/part-of: sentinel
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: scan-jobs
+subjects:
+  - kind: ServiceAccount
+    name: worker
+    namespace: sentinel-scans
+---
+# Checkouts and scan output. The worker and the scanner Jobs both mount it: the scanners read it,
+# and write only their own output folder. The storage class is k3s's default (fine on one node).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sentinel-workspace
+  namespace: sentinel-scans
+  labels:
+    app.kubernetes.io/part-of: sentinel
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.worker.workspaceSize }}
+---
+# Trivy's vulnerability database, shared by the update Job and the scan Jobs.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sentinel-trivy-cache
+  namespace: sentinel-scans
+  labels:
+    app.kubernetes.io/part-of: sentinel
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.worker.trivyCacheSize }}
+---
+# The LangGraph checkpoints, so paused fixes survive a restart.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: worker-state
+  namespace: sentinel-scans
+  labels:
+    app.kubernetes.io/part-of: sentinel
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.worker.stateSize }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: sentinel-scans
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: sentinel
+spec:
+  replicas: 1
+  # One worker only: requeue_stale assumes it is the only consumer. Recreate, never RollingUpdate.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: worker
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: sentinel
+    spec:
+      serviceAccountName: worker
+      automountServiceAccountToken: true    # the worker needs its token to create scanner Jobs
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: {{ printf "%s:%s" .Values.worker.image (required "worker.tag is required: the commit SHA of a green CI run" .Values.worker.tag) | quote }}
+          env:
+            - name: SENTINEL_RUNNER
+              value: kubernetes
+            - name: SENTINEL_WORKSPACE
+              value: /workspace
+            - name: SENTINEL_WORKSPACE_CLAIM
+              value: sentinel-workspace
+            - name: SENTINEL_K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: REDIS_URL
+              value: redis://redis.sentinel.svc.cluster.local:6379/0
+            - name: GITHUB_PRIVATE_KEY_PATH
+              value: /secrets/github/private-key.pem
+          envFrom:
+            - secretRef:
+                name: {{ .Values.worker.secretName }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            limits:
+              memory: 2Gi
+              cpu: "1"
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: state
+              mountPath: /app/agents/.sentinel
+            - name: github-key
+              mountPath: /secrets/github
+              readOnly: true
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: sentinel-workspace
+        - name: state
+          persistentVolumeClaim:
+            claimName: worker-state
+        - name: github-key
+          secret:
+            secretName: {{ .Values.worker.githubKeySecret }}
+            defaultMode: 0400

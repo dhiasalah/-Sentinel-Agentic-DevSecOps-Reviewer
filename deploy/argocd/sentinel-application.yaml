@@ -1,0 +1,24 @@
+# Tells ArgoCD to keep the cluster equal to deploy/helm/sentinel on the main branch.
+# Apply once by hand, after ArgoCD is installed: kubectl apply -f deploy/argocd/sentinel-application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sentinel
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/dhiasalah/-Sentinel-Agentic-DevSecOps-Reviewer.git
+    targetRevision: main
+    path: deploy/helm/sentinel
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sentinel
+  syncPolicy:
+    automated:
+      prune: true       # a resource removed from Git is removed from the cluster
+      selfHeal: true    # a change made by hand is undone
+    syncOptions:
+      - CreateNamespace=true

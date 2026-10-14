@@ -1,9 +1,8 @@
-import subprocess
-
 import pytest
 
 from sentinel_scanners import gitleaks
 from sentinel_scanners.gitleaks import parse_findings, run_gitleaks
+from sentinel_scanners.staging import CONFIG_DIR
 
 SAMPLE = [{
     "RuleID": "hardcoded-secret-assignment",
@@ -18,14 +17,9 @@ SAMPLE = [{
 
 @pytest.fixture
 def captured(monkeypatch):
-    calls = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd)
-        return subprocess.CompletedProcess(cmd, 0, stdout="[]", stderr="")
-
-    monkeypatch.setattr(gitleaks.subprocess, "run", fake_run)
-    return calls
+    jobs = []
+    monkeypatch.setattr(gitleaks, "run_job", jobs.append)
+    return jobs
 
 
 def test_parse_findings_keeps_location_and_drops_the_secret():
@@ -39,16 +33,18 @@ def test_parse_findings_keeps_location_and_drops_the_secret():
 
 def test_scan_is_offline_redacted_and_ignores_inline_allows(tmp_path, captured):
     assert run_gitleaks(tmp_path) == []
-    cmd = " ".join(captured[0])
-    for flag in ("--network none", "--redact", "--ignore-gitleaks-allow", "--config /config/gitleaks.toml"):
-        assert flag in cmd
-    assert ".gitleaksignore" not in cmd
+    [job] = captured
+    assert job.network is False and job.read_only is True
+    for flag in ("--redact", "--ignore-gitleaks-allow", "--config", "/config/gitleaks.toml"):
+        assert flag in job.args
+    assert not any(m.target == "/src/.gitleaksignore" for m in job.mounts)
 
 
 def test_repo_ignore_file_is_shadowed_by_an_empty_one(tmp_path, captured):
     (tmp_path / ".gitleaksignore").write_text("/src/app/crypto.py:hardcoded-secret-assignment:5\n")
     run_gitleaks(tmp_path)
-    assert f"{gitleaks.CONFIG_DIR / 'empty'}:/src/.gitleaksignore:ro" in captured[0]
+    [shadow] = [m for m in captured[0].mounts if m.target == "/src/.gitleaksignore"]
+    assert shadow.path.name == "empty" and shadow.read_only is True
 
 
 def test_refuses_a_gitleaksignore_that_is_not_a_plain_file(tmp_path, captured):
@@ -59,6 +55,6 @@ def test_refuses_a_gitleaksignore_that_is_not_a_plain_file(tmp_path, captured):
 
 
 def test_shadow_ignore_file_ships_with_sentinel():
-    empty = gitleaks.CONFIG_DIR / "empty"
+    empty = CONFIG_DIR / "empty"
     assert empty.is_file()
     assert empty.stat().st_size == 0

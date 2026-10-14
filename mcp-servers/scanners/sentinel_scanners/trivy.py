@@ -1,8 +1,7 @@
-import json
-import subprocess
 from pathlib import Path
 
 from sentinel_scanners.models import Finding
+from sentinel_scanners.runner import Job, Mount, read_result, run_job, scratch_dir
 
 TRIVY_IMAGE = "aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969"
 CACHE_VOLUME = "sentinel-trivy-cache"
@@ -10,20 +9,19 @@ SEVERITY_ORDER = ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
 MAX_IDS = 10
 
 
-def _docker(cmd: list[str], timeout: int) -> str:
-    proc = subprocess.run(cmd, capture_output=True, encoding="utf-8", timeout=timeout)
-    if proc.returncode != 0:
-        raise RuntimeError(f"trivy failed (exit {proc.returncode}): {proc.stderr[-500:]}")
-    return proc.stdout
-
-
 def update_db() -> None:
-    _docker([
-        "docker", "run", "--rm",
-        "-v", f"{CACHE_VOLUME}:/cache",
-        TRIVY_IMAGE,
-        "fs", "--cache-dir", "/cache", "--download-db-only", "--no-progress", "--quiet",
-    ], timeout=600)
+    """Phase 1: download the vulnerability database. The only Trivy run with network and no code.
+    It runs as the image's own user (root) because it writes the shared cache."""
+    run_job(Job(
+        name="trivy-db",
+        image=TRIVY_IMAGE,
+        network=True,
+        read_only=False,
+        user=None,
+        timeout=600,
+        mounts=[Mount("/cache", cache=CACHE_VOLUME, read_only=False)],
+        args=["fs", "--cache-dir", "/cache", "--download-db-only", "--no-progress", "--quiet"],
+    ))
 
 
 def run_trivy(target: Path) -> dict:
@@ -31,16 +29,22 @@ def run_trivy(target: Path) -> dict:
     if not target.is_dir():
         raise FileNotFoundError(f"scan target is not a directory: {target}")
     update_db()
-    return json.loads(_docker([
-        "docker", "run", "--rm", "--network", "none", "--read-only", "--tmpfs", "/tmp",
-        "-v", f"{target}:/src:ro",
-        "-v", f"{CACHE_VOLUME}:/cache:ro",
-        TRIVY_IMAGE,
-        "fs", "--cache-dir", "/cache", "--skip-db-update", "--offline-scan",
-        "--scanners", "vuln", "--list-all-pkgs",
-        "--format", "json", "--quiet",
-        "/src",
-    ], timeout=300))
+    # Phase 2: scan with no network, the database read-only.
+    with scratch_dir("sentinel-trivy-") as out:
+        run_job(Job(
+            name="trivy",
+            image=TRIVY_IMAGE,
+            mounts=[
+                Mount("/src", path=target),
+                Mount("/cache", cache=CACHE_VOLUME),
+                Mount("/out", path=out, read_only=False),
+            ],
+            args=["fs", "--cache-dir", "/cache", "--skip-db-update", "--offline-scan",
+                  "--scanners", "vuln", "--list-all-pkgs", "--format", "json", "--quiet",
+                  "--output", "/out/result.json", "/src"],
+        ))
+        return read_result(out / "result.json") or {}
+
 
 def parse_findings(raw: dict) -> list[Finding]:
     findings = []

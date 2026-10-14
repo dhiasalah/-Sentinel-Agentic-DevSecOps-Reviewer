@@ -1,10 +1,10 @@
 import json
-import subprocess
 
 import pytest
 
 from sentinel_scanners import checkov
 from sentinel_scanners.checkov import parse_findings, run_checkov
+from sentinel_scanners.staging import CONFIG_DIR
 
 
 def check(check_id, lines, name="Ensure something", **extra):
@@ -20,14 +20,9 @@ REPORT = {"check_type": "dockerfile", "results": {
 
 @pytest.fixture
 def captured(monkeypatch):
-    calls = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd)
-        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"passed": 0, "failed": 0}), stderr="")
-
-    monkeypatch.setattr(checkov.subprocess, "run", fake_run)
-    return calls
+    jobs = []
+    monkeypatch.setattr(checkov, "run_job", jobs.append)
+    return jobs
 
 
 def test_root_container_is_a_cwe_250_warning():
@@ -51,12 +46,14 @@ def test_nothing_to_scan_and_line_zero():
 
 def test_scan_is_offline_and_the_repo_config_is_shadowed(tmp_path, captured):
     (tmp_path / ".checkov.yml").write_text("skip-check:\n  - CKV_DOCKER_3\n")
-    assert run_checkov(tmp_path) == [{"passed": 0, "failed": 0}]
-    cmd = " ".join(captured[0])
-    for flag in ("--network none", "--read-only", "BC_SKIP_MAPPING=TRUE", "--skip-download"):
-        assert flag in cmd
-    assert f"{checkov.CONFIG_DIR / 'checkov.yaml'}:/src/.checkov.yml:ro" in captured[0]
-    assert "/src/.checkov.yaml" not in cmd
+    assert run_checkov(tmp_path) == []
+    [job] = captured
+    assert job.network is False and job.read_only is True
+    assert job.env == {"BC_SKIP_MAPPING": "TRUE"}
+    assert "--skip-download" in job.args
+    [shadow] = [m for m in job.mounts if m.target == "/src/.checkov.yml"]
+    assert shadow.path.name == "checkov.yaml"
+    assert not any(m.target == "/src/.checkov.yaml" for m in job.mounts)
 
 
 def test_refuses_a_repo_config_that_is_not_a_plain_file(tmp_path, captured):
@@ -67,5 +64,5 @@ def test_refuses_a_repo_config_that_is_not_a_plain_file(tmp_path, captured):
 
 
 def test_shadow_config_ships_with_sentinel_and_skips_nothing():
-    text = (checkov.CONFIG_DIR / "checkov.yaml").read_text()
+    text = (CONFIG_DIR / "checkov.yaml").read_text()
     assert "soft-fail: true" in text and "skip" not in text

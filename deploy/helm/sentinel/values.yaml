@@ -1,0 +1,23 @@
+# Image tags are the commit SHA of a green CI run on main. Never "latest": a tag must always
+# mean one exact build (see lessons/week09/14-deploy-with-argocd.md).
+api:
+  image: ghcr.io/dhiasalah/sentinel-api
+  tag: ""
+  # Created by hand with kubectl, never committed: REDIS_URL is set by the chart, the rest
+  # (GEMINI_API_KEY, GROQ_API_KEY, GITHUB_WEBHOOK_SECRET) comes from this Secret.
+  secretName: sentinel-api-env
+
+worker:
+  image: ghcr.io/dhiasalah/sentinel-worker
+  tag: ""
+  # Created by hand in sentinel-scans: LLM keys and GITHUB_APP_ID. Never in Git.
+  secretName: sentinel-worker-env
+  # Created by hand: a Secret with one key, private-key.pem (the GitHub App key).
+  githubKeySecret: sentinel-github-app
+  workspaceSize: 20Gi
+  stateSize: 1Gi
+  trivyCacheSize: 5Gi
+
+redis:
+  # Same major version as compose.yaml, pinned by digest.
+  image: redis:8-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
