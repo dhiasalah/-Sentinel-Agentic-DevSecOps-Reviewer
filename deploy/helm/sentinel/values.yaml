@@ -2,7 +2,7 @@
 # mean one exact build (see lessons/week09/14-deploy-with-argocd.md).
 api:
   image: ghcr.io/dhiasalah/sentinel-api
-  tag: ""
+  tag: "0f31e006aadcacda551a9d60343e73a6a3413c17"
   # Created by hand with kubectl, never committed: REDIS_URL is set by the chart, the rest
   # (GEMINI_API_KEY, GROQ_API_KEY, GITHUB_WEBHOOK_SECRET) comes from this Secret.
   secretName: sentinel-api-env
