@@ -3,7 +3,6 @@ import hashlib
 import logging
 import os
 import shutil
-import subprocess
 import tempfile
 from collections import Counter
 from pathlib import Path
@@ -13,6 +12,7 @@ from pydantic import BaseModel
 
 from sentinel.models import Finding, TriagedIssue
 from sentinel.planner import choose_scanners
+from sentinel.scanner_runtime import Job, Mount, ScanJobError, run_job, workspace_root
 
 if TYPE_CHECKING:
     from sentinel.graph import ScannerSpec
@@ -20,10 +20,6 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 GIT_IMAGE = "alpine/git:v2.49.1@sha256:c0280cf9572316299b08544065d3bf35db65043d5e3963982ec50647d2746e26"
-LOCKED_DOWN = [
-    "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-    "--pids-limit", "64", "--memory", "256m", "--cpus", "1", "--user", "65534:65534",
-]
 
 
 class SandboxError(Exception):
@@ -53,14 +49,31 @@ def snapshot(root: Path) -> dict[str, str]:
     return state
 
 
+def make_writable(tree: Path) -> None:
+    """The patch is applied by a Job running as another user: it must be able to write the copy."""
+    for dirpath, dirnames, filenames in os.walk(tree):
+        for name in dirnames:
+            os.chmod(Path(dirpath) / name, 0o777)
+        for name in filenames:
+            path = Path(dirpath) / name
+            if not path.is_symlink():
+                os.chmod(path, path.stat().st_mode | 0o666)
+
+
 def apply_patch(work: Path, patch_dir: Path) -> None:
-    proc = subprocess.run([
-        "docker", "run", "--rm", *LOCKED_DOWN,
-        "-v", f"{work}:/work", "-v", f"{patch_dir}:/patch:ro", "-w", "/work",
-        GIT_IMAGE, "apply", "--verbose", "/patch/fix.patch",
-    ], capture_output=True, encoding="utf-8", timeout=60)
-    if proc.returncode != 0:
-        raise SandboxError(f"patch does not apply: {proc.stderr.strip()[-300:]}")
+    make_writable(work)
+    try:
+        run_job(Job(
+            name="git-apply",
+            image=GIT_IMAGE,
+            args=["-C", "/work", "apply", "--verbose", "/patch/fix.patch"],
+            mounts=[Mount("/work", path=work, read_only=False), Mount("/patch", path=patch_dir)],
+            timeout=60,
+            memory="256m",
+            pids=64,
+        ))
+    except ScanJobError as e:
+        raise SandboxError(f"patch does not apply: {str(e)[-300:]}") from None
 
 
 def key(f: Finding) -> tuple[str, str, str]:
@@ -69,7 +82,7 @@ def key(f: Finding) -> tuple[str, str, str]:
 
 def verify_fix(repo: Path, diff: str, issue: TriagedIssue, all_findings: list[Finding],
                scanners: dict[str, "ScannerSpec"]) -> Verification:
-    with tempfile.TemporaryDirectory(prefix="sentinel-sandbox-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="sentinel-sandbox-", dir=workspace_root()) as tmp:
         work, patch_dir = Path(tmp) / "repo", Path(tmp) / "patch"
         shutil.copytree(repo, work, symlinks=True, ignore=shutil.ignore_patterns(".git"))
         patch_dir.mkdir()

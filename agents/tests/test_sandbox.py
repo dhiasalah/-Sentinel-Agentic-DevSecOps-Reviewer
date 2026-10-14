@@ -1,6 +1,7 @@
 import pytest
 
 from sentinel import sandbox
+from sentinel.scanner_runtime import ScanJobError
 from sentinel.graph import ScannerSpec
 from sentinel.models import Finding, TriagedIssue
 from sentinel.sandbox import SandboxError, verify_fix
@@ -90,13 +91,16 @@ def test_a_file_outside_the_issue_is_rejected(repo, monkeypatch):
 def test_git_runs_locked_down(monkeypatch, tmp_path):
     seen = {}
 
-    def fake_run(cmd, **kwargs):
-        seen["cmd"] = cmd
-        raise SandboxError("stop")
+    def fake_run_job(job):
+        seen["job"] = job
+        raise ScanJobError("stop")
 
-    monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
+    monkeypatch.setattr(sandbox, "run_job", fake_run_job)
     with pytest.raises(SandboxError):
         sandbox.apply_patch(tmp_path, tmp_path)
-    cmd = " ".join(seen["cmd"])
-    for flag in ("--network none", "--read-only", "--cap-drop ALL", "--user 65534:65534", "/patch:ro", "@sha256:"):
-        assert flag in cmd
+    job = seen["job"]
+    assert job.network is False and job.read_only is True and job.user == "65534:65534"
+    assert job.image == sandbox.GIT_IMAGE and "@sha256:" in job.image
+    assert any(m.target == "/patch" and m.read_only for m in job.mounts)
+    assert any(m.target == "/work" and not m.read_only for m in job.mounts)
+    assert job.args[:2] == ["-C", "/work"]
