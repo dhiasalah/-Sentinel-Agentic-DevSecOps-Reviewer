@@ -46,7 +46,8 @@ jobs:
 
       - name: Save the image to a file outside the repo
         run: docker save sentinel-api:ci -o "$RUNNER_TEMP/sentinel-api.tar"
-          - name: Trivy scans the image (fail on HIGH or CRITICAL)
+
+      - name: Trivy scans the image (fail on HIGH or CRITICAL)
         run: |
           docker run --rm \
             -v "$RUNNER_TEMP:/work" \
