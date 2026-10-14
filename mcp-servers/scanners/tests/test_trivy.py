@@ -1,5 +1,4 @@
 import json
-import subprocess
 
 import pytest
 
@@ -21,14 +20,9 @@ SAMPLE = {"Results": [{
 
 @pytest.fixture
 def captured(monkeypatch):
-    calls = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd)
-        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"Results": []}), stderr="")
-
-    monkeypatch.setattr(trivy.subprocess, "run", fake_run)
-    return calls
+    jobs = []
+    monkeypatch.setattr(trivy, "run_job", jobs.append)
+    return jobs
 
 
 def test_one_finding_per_package_on_its_line_with_the_worst_severity():
@@ -46,8 +40,10 @@ def test_clean_repo_has_no_findings():
 
 def test_db_download_never_sees_the_code_and_the_scan_is_offline(tmp_path, captured):
     run_trivy(tmp_path)
-    download, scan = (" ".join(c) for c in captured)
-    assert "/src" not in download and "--download-db-only" in download
-    for flag in ("--network none", "--read-only", f"{trivy.CACHE_VOLUME}:/cache:ro", "--skip-db-update",
-                 "--offline-scan", "--scanners vuln"):
-        assert flag in scan
+    download, scan = captured
+    assert download.network is True and download.user is None
+    assert not any(m.path for m in download.mounts) and "--download-db-only" in download.args
+    assert scan.network is False and scan.read_only is True
+    assert any(m.cache == trivy.CACHE_VOLUME and m.read_only for m in scan.mounts)
+    for flag in ("--skip-db-update", "--offline-scan", "--scanners", "vuln"):
+        assert flag in scan.args

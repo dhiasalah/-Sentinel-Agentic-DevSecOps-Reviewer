@@ -10,6 +10,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from sentinel.scanner_runtime import workspace_root
+
 logger = logging.getLogger(__name__)
 
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -40,7 +42,10 @@ def _force_remove(func, path, exc):
 def checkout_pr_head(repo: str, head_sha: str, token: str) -> Iterator[Path]:
     if not REPO_RE.fullmatch(repo) or not SHA_RE.fullmatch(head_sha):
         raise ValueError("refusing to clone: invalid repo name or commit sha")
-    workdir = Path(tempfile.mkdtemp(prefix="sentinel-"))
+    # base/repo is the checkout; base/out is where scanner Jobs write, so scanners never see each other.
+    base = Path(tempfile.mkdtemp(prefix="sentinel-", dir=workspace_root()))
+    workdir = base / "repo"
+    workdir.mkdir()
     try:
         env = git_env(token)
         run_git(["init", "--quiet"], workdir, env)
@@ -52,5 +57,5 @@ def checkout_pr_head(repo: str, head_sha: str, token: str) -> Iterator[Path]:
         logger.info("checked out %s@%s into %s", repo, head_sha[:7], workdir)
         yield workdir
     finally:
-        shutil.rmtree(workdir, onexc=_force_remove)
-        logger.info("removed %s", workdir)
+        shutil.rmtree(base, onexc=_force_remove)
+        logger.info("removed %s", base)

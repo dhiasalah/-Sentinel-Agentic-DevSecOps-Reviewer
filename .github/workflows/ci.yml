@@ -70,4 +70,44 @@ jobs:
           docker tag sentinel-api:ci "$IMAGE:${{ github.sha }}"
           docker push "$IMAGE:${{ github.sha }}"
 
+  worker-image:
+    needs: api-tests
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Build the worker image
+        run: docker build -f agents/Dockerfile -t sentinel-worker:ci .
+
+      - name: Save the image to a file outside the repo
+        run: docker save sentinel-worker:ci -o "$RUNNER_TEMP/sentinel-worker.tar"
+
+      - name: Trivy scans the image (fail on HIGH or CRITICAL)
+        run: |
+          docker run --rm \
+            -v "$RUNNER_TEMP:/work" \
+            aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
+            image --input /work/sentinel-worker.tar \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Push the scanned worker image to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/sentinel-worker
+        run: |
+          docker tag sentinel-worker:ci "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:${{ github.sha }}"
+
 

@@ -1,11 +1,11 @@
-import json
-import subprocess
 from pathlib import Path
 
 from sentinel_scanners.models import Finding
+from sentinel_scanners.runner import Job, Mount, read_result, run_job, scratch_dir
+from sentinel_scanners.staging import stage_config
 
 CHECKOV_IMAGE = "bridgecrew/checkov:3.3.16@sha256:7407699a91a556849ae66e05c3753f58cf0ce922aa6ddfac7839aad4f390c016"
-CONFIG_DIR = Path(__file__).parent / "config"
+CHECKOV_RESULT = "results_json.json"  # the file Checkov writes into --output-file-path
 REPO_CONFIGS = (".checkov.yaml", ".checkov.yml")
 FRAMEWORKS = ["dockerfile", "terraform", "kubernetes", "cloudformation", "github_actions"]
 RULES = {
@@ -20,28 +20,28 @@ def run_checkov(target: Path) -> list[dict]:
     target = target.resolve()
     if not target.is_dir():
         raise FileNotFoundError(f"scan target is not a directory: {target}")
-    mounts = ["-v", f"{target}:/src:ro"]
     for name in REPO_CONFIGS:
         repo_config = target / name
         if repo_config.is_symlink() or (repo_config.exists() and not repo_config.is_file()):
             raise RuntimeError(f"refusing to scan: {name} is not a regular file")
-        if repo_config.exists():
-            mounts += ["-v", f"{CONFIG_DIR / 'checkov.yaml'}:/src/{name}:ro"]
-    cmd = [
-        "docker", "run", "--rm", "--network", "none", "--read-only", "--tmpfs", "/tmp",
-        "-e", "BC_SKIP_MAPPING=TRUE",
-        *mounts,
-        CHECKOV_IMAGE,
-        "-d", "/src",
-        "--framework", *FRAMEWORKS,
-        "--skip-download", "--soft-fail", "--compact",
-        "-o", "json",
-    ]
-    proc = subprocess.run(cmd, capture_output=True, encoding="utf-8", timeout=300)
-    if proc.returncode != 0:
-        raise RuntimeError(f"checkov failed (exit {proc.returncode}): {proc.stderr[-500:]}")
-    raw = json.loads(proc.stdout)
-    return raw if isinstance(raw, list) else [raw]
+    with scratch_dir("sentinel-checkov-") as out:
+        config = stage_config(out)
+        mounts = [Mount("/src", path=target), Mount("/out", path=out, read_only=False)]
+        for name in REPO_CONFIGS:
+            if (target / name).exists():
+                # The repo's own config could switch checks off: replace it with ours.
+                mounts.append(Mount(f"/src/{name}", path=config / "checkov.yaml"))
+        run_job(Job(
+            name="checkov",
+            image=CHECKOV_IMAGE,
+            mounts=mounts,
+            env={"BC_SKIP_MAPPING": "TRUE"},
+            args=["-d", "/src", "--framework", *FRAMEWORKS, "--skip-download", "--soft-fail",
+                  "--compact", "-o", "json", "--output-file-path", "/out"],
+        ))
+        reports = read_result(out / CHECKOV_RESULT) or []
+    return reports if isinstance(reports, list) else [reports]
+
 
 def parse_findings(reports: list[dict]) -> list[Finding]:
     findings = []

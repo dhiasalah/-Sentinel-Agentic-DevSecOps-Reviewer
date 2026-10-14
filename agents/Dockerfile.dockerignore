@@ -1,0 +1,17 @@
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/tests/
+.env
+.env.*
+**/.sentinel/
+**/*.sqlite
+**/*.pem
+lessons/
+.git/
+evals/
+docs/
+apps/
+infra/
+deploy/
