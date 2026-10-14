@@ -1,0 +1,67 @@
+# Who may talk to whom. Kubernetes allows the union of all policies that select a pod.
+
+# 1. Scanner Jobs: no traffic at all (default deny).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scanner-no-network
+  namespace: sentinel-scans
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: scanner
+  policyTypes: ["Ingress", "Egress"]
+---
+# 2. The only scanner Jobs with internet access: Semgrep (rule download) and the Trivy DB update.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scanner-rule-downloads
+  namespace: sentinel-scans
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: scanner
+      sentinel.dev/network: "true"
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+---
+# 3. Nothing may connect to the worker. It only connects out.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-no-ingress
+  namespace: sentinel-scans
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: worker
+  policyTypes: ["Ingress"]
+---
+# 4. Redis accepts connections only from the API and the worker.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-from-sentinel
+  namespace: sentinel
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: sentinel-scans
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker
+      ports:
+        - port: 6379

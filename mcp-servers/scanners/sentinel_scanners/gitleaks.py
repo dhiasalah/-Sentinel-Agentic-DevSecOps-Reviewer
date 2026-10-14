@@ -1,39 +1,35 @@
-import json
-import subprocess
 from pathlib import Path
 
 from sentinel_scanners.models import Finding
+from sentinel_scanners.runner import Job, Mount, read_result, run_job, scratch_dir
+from sentinel_scanners.staging import stage_config
 
 GITLEAKS_IMAGE = "zricethezav/gitleaks:v8.24.0@sha256:2bcceac45179b3a91bff11a824d0fb952585b429e54fc928728b1d4d5c3e5176"
-CONFIG_DIR = Path(__file__).parent / "config"
 
 
 def run_gitleaks(target: Path) -> list[dict]:
     target = target.resolve()
     if not target.is_dir():
         raise FileNotFoundError(f"scan target is not a directory: {target}")
-    mounts = ["-v", f"{target}:/src:ro", "-v", f"{CONFIG_DIR}:/config:ro"]
     repo_ignore = target / ".gitleaksignore"
     if repo_ignore.is_symlink() or (repo_ignore.exists() and not repo_ignore.is_file()):
         raise RuntimeError("refusing to scan: .gitleaksignore is not a regular file")
-    if repo_ignore.exists():
-        mounts += ["-v", f"{CONFIG_DIR / 'empty'}:/src/.gitleaksignore:ro"]
-    cmd = [
-        "docker", "run", "--rm", "--network", "none",
-        *mounts,
-        GITLEAKS_IMAGE,
-        "dir", "/src",
-        "--config", "/config/gitleaks.toml",
-        "--ignore-gitleaks-allow",
-        "--redact",
-        "--no-banner", "--log-level", "error",
-        "--report-format", "json", "--report-path", "-",
-        "--exit-code", "0",
-    ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-    if proc.returncode != 0:
-        raise RuntimeError(f"gitleaks failed (exit {proc.returncode}): {proc.stderr[-500:]}")
-    return json.loads(proc.stdout)
+    with scratch_dir("sentinel-gitleaks-") as out:
+        config = stage_config(out)
+        mounts = [Mount("/src", path=target), Mount("/config", path=config),
+                  Mount("/out", path=out, read_only=False)]
+        if repo_ignore.exists():
+            # The repo's own .gitleaksignore could hide a secret: replace it with an empty file.
+            mounts.append(Mount("/src/.gitleaksignore", path=config / "empty"))
+        run_job(Job(
+            name="gitleaks",
+            image=GITLEAKS_IMAGE,
+            mounts=mounts,
+            args=["dir", "/src", "--config", "/config/gitleaks.toml", "--ignore-gitleaks-allow",
+                  "--redact", "--no-banner", "--log-level", "error",
+                  "--report-format", "json", "--report-path", "/out/result.json", "--exit-code", "0"],
+        ))
+        return read_result(out / "result.json") or []
 
 def parse_findings(raw: list[dict]) -> list[Finding]:
     return [
@@ -47,5 +43,5 @@ def parse_findings(raw: list[dict]) -> list[Finding]:
             end_line=leak["EndLine"],
             cwe=["CWE-798"],
         )
-        for leak in raw
+        for leak in raw or []
     ]

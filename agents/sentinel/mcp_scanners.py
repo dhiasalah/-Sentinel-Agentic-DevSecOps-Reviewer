@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from mcp.client.stdio import get_default_environment
 from mcp.types import CallToolResult
 
 from sentinel.models import Finding
+from sentinel.scanner_runtime import RUNNER_ENV_KEYS
 
 SERVER_DIR = Path(__file__).resolve().parents[2] / "mcp-servers" / "scanners"
 MAX_FINDINGS = 500
@@ -18,7 +20,12 @@ def server_params(path: Path) -> StdioServerParameters:
         command=sys.executable,
         args=["-m", "sentinel_scanners.server"],
         cwd=SERVER_DIR,
-        env={**get_default_environment(), "SENTINEL_SCAN_ROOT": str(path.resolve())},
+        env={
+            **get_default_environment(),
+            # Only the runner settings (where the cluster is, which volume to use), never our secrets.
+            **{key: os.environ[key] for key in RUNNER_ENV_KEYS if key in os.environ},
+            "SENTINEL_SCAN_ROOT": str(path.resolve()),
+        },
     )
 
 
