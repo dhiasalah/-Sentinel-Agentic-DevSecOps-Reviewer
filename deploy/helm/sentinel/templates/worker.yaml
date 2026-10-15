@@ -141,7 +141,12 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+          # Requests are what the scheduler reserves. The VM has 2 CPUs, so ask for little and
+          # allow bursts up to the limit while a scan runs.
           resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
             limits:
               memory: 2Gi
               cpu: "1"
