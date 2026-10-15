@@ -114,6 +114,7 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
+        fsGroup: 1000           # the GitHub key volume is readable by the worker's group
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -168,4 +169,4 @@ spec:
         - name: github-key
           secret:
             secretName: {{ .Values.worker.githubKeySecret }}
-            defaultMode: 0400
+            defaultMode: 0440      # owner and group can read, nobody else
