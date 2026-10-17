@@ -5,8 +5,8 @@ import pytest
 
 from sentinel_scanners import runner
 from sentinel_scanners.runner import (
-    Job, KubernetesRunner, Mount, ScanJobError, ServiceAccountAuth, docker_command, job_manifest, read_result,
-    scratch_dir,
+    Job, KubernetesRunner, Mount, ScanJobError, ServiceAccountAuth, docker_command, job_manifest, k8s_memory,
+    read_result, scratch_dir,
 )
 
 
@@ -60,7 +60,7 @@ def test_kubernetes_manifest_is_locked_down_and_uses_a_sub_path(tmp_path):
     assert container["securityContext"]["readOnlyRootFilesystem"] is True
     assert container["securityContext"]["capabilities"] == {"drop": ["ALL"]}
     assert container["securityContext"]["allowPrivilegeEscalation"] is False
-    assert container["resources"]["limits"] == {"memory": "1g", "cpu": "1"}
+    assert container["resources"]["limits"] == {"memory": "1Gi", "cpu": "1"}
     volumes = {v["name"]: v for v in pod["volumes"]}
     assert volumes["mount-0"]["persistentVolumeClaim"]["claimName"] == "sentinel-workspace"
     assert {"name": "mount-0", "mountPath": "/src", "subPath": "sentinel-semgrep-x/repo", "readOnly": True} \
@@ -159,3 +159,10 @@ def test_run_job_uses_docker_unless_told_otherwise(monkeypatch):
     runner.run_job(job())
     assert calls and calls[0][:2] == ["docker", "run"]
     runner._runner.cache_clear()
+
+
+def test_memory_is_written_in_kubernetes_units():
+    assert k8s_memory("1g") == "1Gi" and k8s_memory("256m") == "256Mi" and k8s_memory("512K") == "512Ki"
+    for bad in ("1", "1Gi", "g", "1.5g", ""):
+        with pytest.raises(ValueError):
+            k8s_memory(bad)
