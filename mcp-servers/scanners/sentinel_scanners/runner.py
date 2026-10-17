@@ -28,6 +28,17 @@ RUNNER_ENV_KEYS = (
 )
 
 
+DOCKER_TO_K8S_UNITS = {"k": "Ki", "m": "Mi", "g": "Gi"}
+
+
+def k8s_memory(value: str) -> str:
+    """Docker writes memory as "1g" / "256m"; Kubernetes needs "1Gi" / "256Mi" (there "m" means milli)."""
+    number, unit = value[:-1], value[-1:].lower()
+    if not number.isdigit() or unit not in DOCKER_TO_K8S_UNITS:
+        raise ValueError(f"memory must look like 256m or 1g, got {value!r}")
+    return number + DOCKER_TO_K8S_UNITS[unit]
+
+
 class ScanJobError(RuntimeError):
     """A scanner container failed, timed out, or could not be started."""
 
@@ -116,7 +127,7 @@ def job_manifest(job: Job, *, namespace: str, workspace: Path, claim: str, name:
 
     limits = {}
     if job.memory:
-        limits["memory"] = job.memory
+        limits["memory"] = k8s_memory(job.memory)
     if job.cpus:
         limits["cpu"] = job.cpus
     container = {
@@ -190,7 +201,9 @@ class KubernetesRunner:
         manifest = job_manifest(job, namespace=self.namespace, workspace=self.workspace,
                                 claim=self.claim, name=name)
         jobs = f"/apis/batch/v1/namespaces/{self.namespace}/jobs"
-        self.client.post(jobs, json=manifest).raise_for_status()
+        created = self.client.post(jobs, json=manifest)
+        if created.is_error:
+            raise ScanJobError(f"{job.name}: the cluster refused the Job ({created.status_code}): {created.text[:300]}")
         try:
             deadline = time.monotonic() + job.timeout + 60
             while True:
