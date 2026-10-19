@@ -51,7 +51,7 @@ spec:
       ports:
         - port: 443
           protocol: TCP
-
+---
 # 3. Nothing may connect to the worker. It only connects out.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
