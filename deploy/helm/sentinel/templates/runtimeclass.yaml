@@ -1,0 +1,7 @@
+# gVisor: pods that ask for runtimeClassName "gvisor" run on a user-space kernel (runsc) instead of the real one.
+# Needs runsc + the containerd template on the node (lessons/week09/22-gvisor-install.md).
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: gvisor
+handler: runsc
