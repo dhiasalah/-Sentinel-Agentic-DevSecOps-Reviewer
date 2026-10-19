@@ -5,6 +5,7 @@ resource "azurerm_public_ip" "sentinel" {
   resource_group_name = azurerm_resource_group.sentinel.name
   allocation_method   = "Static"
   sku                 = "Standard"
+  domain_name_label   = "sentinel-dhiasalah"
 }
 
 # Plugs the server into your street and gives it the address above

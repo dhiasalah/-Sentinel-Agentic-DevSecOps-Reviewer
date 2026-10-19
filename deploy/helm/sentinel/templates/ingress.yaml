@@ -1,0 +1,22 @@
+# The only public way into the cluster: GitHub's webhook, nothing else.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-webhooks
+  namespace: sentinel
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: sentinel
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: {{ required "ingress.host is required: the public name GitHub calls" .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /webhooks/github
+            pathType: Exact
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
