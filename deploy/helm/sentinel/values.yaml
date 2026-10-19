@@ -25,4 +25,4 @@ ingress:
   # The public name GitHub sends webhooks to (Azure DNS label on the VM's static IP, see infra/terraform/server.tf).
   host: sentinel-dhiasalah.northcentralus.cloudapp.azure.com
   # letsencrypt-staging until the first certificate works, then letsencrypt-prod (see templates/cluster-issuers.yaml).
-  clusterIssuer: letsencrypt-staging
+  clusterIssuer: letsencrypt-prod
