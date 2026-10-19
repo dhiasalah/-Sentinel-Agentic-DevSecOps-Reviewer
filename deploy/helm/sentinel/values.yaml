@@ -17,6 +17,8 @@ worker:
   workspaceSize: 20Gi
   stateSize: 1Gi
   trivyCacheSize: 5Gi
+  # Scanner Jobs run under gVisor (templates/runtimeclass.yaml). "" = the node's default runtime (runc).
+  runtimeClass: gvisor
 
 redis:
   # Same major version as compose.yaml, pinned by digest.

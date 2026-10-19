@@ -23,7 +23,7 @@ import httpx
 SA_DIR = Path("/var/run/secrets/kubernetes.io/serviceaccount")
 SCANNER_UID = "65534:65534"  # "nobody": scanners never run as root
 RUNNER_ENV_KEYS = (
-    "SENTINEL_RUNNER", "SENTINEL_WORKSPACE", "SENTINEL_WORKSPACE_CLAIM", "SENTINEL_K8S_NAMESPACE",
+    "SENTINEL_RUNNER", "SENTINEL_WORKSPACE", "SENTINEL_WORKSPACE_CLAIM", "SENTINEL_K8S_NAMESPACE", "SENTINEL_RUNTIME_CLASS",
     "KUBERNETES_SERVICE_HOST", "KUBERNETES_SERVICE_PORT",
 )
 
@@ -104,7 +104,8 @@ class DockerRunner:
 
 # ---------- Kubernetes backend (cluster) ----------
 
-def job_manifest(job: Job, *, namespace: str, workspace: Path, claim: str, name: str) -> dict:
+def job_manifest(job: Job, *, namespace: str, workspace: Path, claim: str, name: str,
+                 runtime_class: str | None = None) -> dict:
     """The Kubernetes Job for one scanner run. Pure function: no cluster needed to test it."""
     volumes, mounts = [], []
     for index, mount in enumerate(job.mounts):
@@ -153,7 +154,7 @@ def job_manifest(job: Job, *, namespace: str, workspace: Path, claim: str, name:
         "sentinel.dev/tool": job.name,
         "sentinel.dev/network": "true" if job.network else "false",
     }
-    return {
+    manifest = {
         "apiVersion": "batch/v1",
         "kind": "Job",
         "metadata": {"name": name, "namespace": namespace, "labels": labels},
@@ -173,6 +174,10 @@ def job_manifest(job: Job, *, namespace: str, workspace: Path, claim: str, name:
             },
         },
     }
+    if runtime_class:
+        # e.g. "gvisor": the scanner runs on a user-space kernel, not the server's (see the RuntimeClass in the chart)
+        manifest["spec"]["template"]["spec"]["runtimeClassName"] = runtime_class
+    return manifest
 
 
 class ServiceAccountAuth(httpx.Auth):
@@ -188,18 +193,19 @@ class ServiceAccountAuth(httpx.Auth):
 
 class KubernetesRunner:
     def __init__(self, client: httpx.Client, namespace: str, workspace: Path, claim: str,
-                 sleep=time.sleep, poll_seconds: float = 2.0):
+                 runtime_class: str | None = None, sleep=time.sleep, poll_seconds: float = 2.0):
         self.client = client
         self.namespace = namespace
         self.workspace = workspace
         self.claim = claim
+        self.runtime_class = runtime_class
         self.sleep = sleep
         self.poll_seconds = poll_seconds
 
     def run(self, job: Job) -> None:
         name = f"{job.name}-{uuid.uuid4().hex[:10]}"
         manifest = job_manifest(job, namespace=self.namespace, workspace=self.workspace,
-                                claim=self.claim, name=name)
+                                claim=self.claim, name=name, runtime_class=self.runtime_class)
         jobs = f"/apis/batch/v1/namespaces/{self.namespace}/jobs"
         created = self.client.post(jobs, json=manifest)
         if created.is_error:
@@ -253,7 +259,8 @@ def _runner():
         return DockerRunner()
     namespace = os.environ.get("SENTINEL_K8S_NAMESPACE") or (SA_DIR / "namespace").read_text().strip()
     claim = os.environ["SENTINEL_WORKSPACE_CLAIM"]
-    return KubernetesRunner(in_cluster_client(), namespace, workspace_root(), claim)
+    runtime_class = os.environ.get("SENTINEL_RUNTIME_CLASS") or None  # unset or "" = the node's default (runc)
+    return KubernetesRunner(in_cluster_client(), namespace, workspace_root(), claim, runtime_class)
 
 
 def run_job(job: Job) -> None:
