@@ -166,3 +166,12 @@ def test_memory_is_written_in_kubernetes_units():
     for bad in ("1", "1Gi", "g", "1.5g", ""):
         with pytest.raises(ValueError):
             k8s_memory(bad)
+
+
+def test_scanner_jobs_run_under_gvisor_only_when_asked(tmp_path):
+    def pod(**extra):
+        manifest = job_manifest(job(mounts=[Mount("/src", path=tmp_path / "repo")]), namespace="sentinel-scans",
+                                workspace=tmp_path, claim="sentinel-workspace", name="demo-abc", **extra)
+        return manifest["spec"]["template"]["spec"]
+    assert "runtimeClassName" not in pod()
+    assert pod(runtime_class="gvisor")["runtimeClassName"] == "gvisor"
