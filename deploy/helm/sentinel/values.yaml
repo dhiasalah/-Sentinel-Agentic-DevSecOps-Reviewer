@@ -21,3 +21,6 @@ worker:
 redis:
   # Same major version as compose.yaml, pinned by digest.
   image: redis:8-alpine@sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0
+ingress:
+  # The public name GitHub sends webhooks to (Azure DNS label on the VM's static IP, see infra/terraform/server.tf).
+  host: sentinel-dhiasalah.northcentralus.cloudapp.azure.com
