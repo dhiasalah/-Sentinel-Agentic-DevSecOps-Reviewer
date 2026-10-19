@@ -13,6 +13,7 @@ spec:
   policyTypes: ["Ingress", "Egress"]
 ---
 # 2. The only scanner Jobs with internet access: Semgrep (rule download) and the Trivy DB update.
+#    Public internet over HTTPS only: never our own networks or the cloud metadata service.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -25,10 +26,32 @@ spec:
       sentinel.dev/network: "true"
   policyTypes: ["Egress"]
   egress:
+    # DNS, only to the cluster's own DNS server.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # The public internet, HTTPS only.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
----
+            except:
+              - 10.0.0.0/8 # Azure VNet (10.0.x), pods (10.42.x), services (10.43.x)
+              - 172.16.0.0/12 # other private ranges
+              - 192.168.0.0/16
+              - 169.254.0.0/16 # cloud metadata service (169.254.169.254)
+      ports:
+        - port: 443
+          protocol: TCP
+
 # 3. Nothing may connect to the worker. It only connects out.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
