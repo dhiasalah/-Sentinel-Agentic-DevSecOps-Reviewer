@@ -7,8 +7,17 @@ metadata:
   labels:
     app.kubernetes.io/name: api
     app.kubernetes.io/part-of: sentinel
+  annotations:
+    # cert-manager reads this and gets a certificate for the hosts listed under tls.
+    cert-manager.io/cluster-issuer: {{ required "ingress.clusterIssuer is required" .Values.ingress.clusterIssuer | quote }}
+    # Serve this route on HTTPS (:443) only. The ACME token page is a separate Ingress, so :80 still works for it.
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: api-webhooks-tls
   rules:
     - host: {{ required "ingress.host is required: the public name GitHub calls" .Values.ingress.host | quote }}
       http:
