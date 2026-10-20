@@ -32,8 +32,34 @@ jobs:
       - run: pip install -r requirements-dev.txt
 
       - run: python -m pytest -q
+  worker-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            agents/requirements*.txt
+            mcp-servers/scanners/requirements.txt
+
+      - run: pip install -r agents/requirements-dev.txt -r mcp-servers/scanners/requirements.txt
+
+      - name: Worker tests (incl. the prompt-injection red-team suite)
+        working-directory: agents
+        run: python -m pytest -q -rxX
+
+      - name: Scanner tests (runner, Jobs, the 4 scanners)
+        working-directory: mcp-servers/scanners
+        run: python -m pytest -q
+
   image:
-    needs: api-tests
+    needs: [api-tests, worker-tests]
     permissions:
       contents: read
       packages: write
@@ -71,7 +97,7 @@ jobs:
           docker push "$IMAGE:${{ github.sha }}"
 
   worker-image:
-    needs: api-tests
+    needs: [api-tests, worker-tests]
     permissions:
       contents: read
       packages: write
