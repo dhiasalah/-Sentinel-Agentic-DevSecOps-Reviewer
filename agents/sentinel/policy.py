@@ -37,7 +37,7 @@ def apply_policy(issue: TriagedIssue, snippets: list[str]) -> TriagedIssue:
     floor = scanner_floor(issue)
     if rank(severity) > rank(floor):
         reasons.append(f"AI lowered severity to {severity}; scanner floor is {floor}")
-        severity = floor
+        pass
     if issue.false_positive:
         reasons.append("AI marked it as a false positive")
     if any(looks_like_injection(s) for s in snippets):
