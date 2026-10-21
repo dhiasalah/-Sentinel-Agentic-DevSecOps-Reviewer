@@ -7,7 +7,7 @@ checks the patch in a sandbox and waits for a human to approve it before it open
 The interesting part is not that an LLM reads code. It's that the LLM reads **code written by strangers**, so it
 has to be treated as something an attacker can talk to. Most of the design follows from that.
 
-![Sentinel reviewing a pull request: the PR is opened, the worker scans it, and the bot posts a security report comment with severities, explanations and a prompt-injection review flag](docs/demo/sentinel-pr-comment.gif)
+![Sentinel demo: a PR hides a pickle bug behind a comment telling the AI to ignore it; scanner Jobs run on Kubernetes; the report keeps it HIGH with a prompt-injection review flag; a human requests and approves a fix on the dashboard; Sentinel opens a fix PR; Langfuse shows the traced AI calls](docs/demo/sentinel-pr-comment.gif)
 
 | Measured | Result |
 |---|---|
