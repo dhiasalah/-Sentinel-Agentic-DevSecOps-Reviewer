@@ -8,3 +8,4 @@ redis==8.1.0
 langgraph==1.2.12
 mcp==2.2.0
 langgraph-checkpoint-sqlite==3.1.1
+langfuse==5.0.3
