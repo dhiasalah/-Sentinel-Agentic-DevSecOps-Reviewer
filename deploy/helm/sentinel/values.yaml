@@ -9,7 +9,7 @@ api:
 
 worker:
   image: ghcr.io/dhiasalah/sentinel-worker
-  tag: "c607ded036cdb5a157a32e34070919f802119abd"
+  tag: "e09bdc512fbb9d96ec6e8101969f0c8906cd30ff"
   # Created by hand in sentinel-scans: LLM keys and GITHUB_APP_ID. Never in Git.
   secretName: sentinel-worker-env
   # Created by hand: a Secret with one key, private-key.pem (the GitHub App key).
