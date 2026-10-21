@@ -51,14 +51,14 @@ sequenceDiagram
     GH->>API: pull_request webhook (HMAC-signed)
     API->>API: verify signature, drop replay
     API->>Q: LPUSH job {repo, pr, sha, installation}
-    W->>Q: BLMOVE jobs -> processing
+    W->>Q: BLMOVE jobs to processing
     W->>GH: token for 1 repo, contents:read
     W->>W: shallow checkout of the exact SHA
     par one Job per scanner
         W->>J: semgrep / trivy / gitleaks / checkov
         J-->>W: findings (JSON file)
     end
-    W->>AI: findings + code in <untrusted-RANDOM> fence
+    W->>AI: findings + code inside a random untrusted fence
     AI-->>W: JSON, checked against a schema
     W->>W: policy: severity floor, nothing dropped, flags
     W->>GH: new token, pull_requests:write, upsert 1 comment
