@@ -106,7 +106,7 @@ with the cluster's public key; the controller in the cluster is the only thing t
 
 ## Infrastructure and network security
 
-![Sentinel infrastructure: the Azure firewall allows SSH from one address and web traffic to Traefik only; inside k3s, five namespaces and five NetworkPolicies separate the public API, the worker and the sandboxed scanner Jobs](docs/infrastructure.svg)
+![Sentinel network map: the Azure firewall lets in SSH from one address and web traffic to Traefik; Traefik reaches the API on 8000, the API and the worker reach Redis on 6379, nothing reaches the worker, the worker creates scanner Jobs and swaps files with them on a volume, two Jobs may use DNS and public HTTPS, the rest have no network](docs/infrastructure.svg)
 
 Everything runs on one Azure VM, built by Terraform. A request has to get past three walls:
 

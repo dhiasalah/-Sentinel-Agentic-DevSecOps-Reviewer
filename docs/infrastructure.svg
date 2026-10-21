@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 1010" width="1320" height="1010" role="img" aria-labelledby="t d">
-  <title id="t">Sentinel infrastructure and network security</title>
-  <desc id="d">Inbound traffic meets the Azure network security group first: SSH port 22 only from one address, ports 80 and 443 from the internet, everything else including the Kubernetes API port 6443 is dropped. On the VM, SSH is key-only and kubectl reaches the k3s API only through an SSH tunnel. Inside k3s, five namespaces separate concerns: kube-system (Traefik, Sealed Secrets), cert-manager, argocd, sentinel (API, Redis) and sentinel-scans (worker, scanner Jobs under gVisor). NetworkPolicies: scanner Jobs deny all traffic; Semgrep and the Trivy database update may use DNS and HTTPS to public IPs only; nothing may connect to the worker; Redis accepts only the API and the worker; the API accepts only Traefik. The worker's outbound traffic is not restricted yet.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 960" width="1320" height="960" role="img" aria-labelledby="t d">
+  <title id="t">Sentinel network map</title>
+  <desc id="d">The Azure firewall lets in SSH from one address and web traffic on 80 and 443; everything else is dropped. Inside k3s: Traefik forwards to the API on port 8000; the API and the worker reach Redis on 6379; nothing may connect to the worker; the worker asks the Kubernetes API to create scanner Jobs and exchanges files with them on a shared volume, not over the network. Semgrep and the Trivy database update may reach DNS and public HTTPS; the other scanner Jobs have no network at all. The worker's outbound traffic to LLMs, GitHub, Supabase and Langfuse is not restricted yet.</desc>
   <defs>
     <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
       <line x1="0" y1="0" x2="0" y2="6" stroke="#c0531f" stroke-width="1.2" opacity="0.35"/>
@@ -8,217 +8,232 @@
     <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#17191e"/>
     </marker>
-    <marker id="arrm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M0,0 L10,5 L0,10 z" fill="#8a8d93"/>
-    </marker>
     <marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#1f6b47"/>
     </marker>
     <marker id="arrr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#c0531f"/>
     </marker>
+    <marker id="arrm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8a8d93"/>
+    </marker>
     <style>
       text { font-family: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; fill: #17191e; }
       .mono { font-family: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace; }
       .serif { font-family: Newsreader, Georgia, "Times New Roman", serif; }
-      .h { font-size: 15px; font-weight: 600; }
-      .hs { font-size: 13.5px; font-weight: 600; }
+      .h { font-size: 14.5px; font-weight: 600; }
       .s { fill: #62666f; font-size: 11.5px; }
       .zone { font-family: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace; fill: #62666f; font-size: 11.5px; font-weight: 600; letter-spacing: 1.6px; }
       .ns { font-family: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace; fill: #8a8d93; font-size: 10.5px; }
-      .lbl { font-family: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace; font-size: 10.5px; font-weight: 600; }
-      .num { font-family: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace; fill: #fffefb; font-size: 11px; font-weight: 700; }
+      .pill { font-family: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace; font-size: 10.5px; font-weight: 700; }
+      .pw { fill: #fffefb; }
       .card { fill: #fffefb; stroke: #17191e; stroke-width: 1; }
       .nsbox { fill: none; stroke: #b9b5aa; stroke-dasharray: 3 3; }
-      .flow { fill: none; stroke: #17191e; stroke-width: 1.5; }
+      .flow { fill: none; stroke: #17191e; stroke-width: 1.6; }
       .gate { font-family: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace; fill: #fffefb; font-size: 11px; font-weight: 700; }
     </style>
   </defs>
 
-  <rect width="1320" height="1010" fill="#f6f4ee"/>
+  <rect width="1320" height="960" fill="#f6f4ee"/>
 
   <!-- title -->
-  <text x="40" y="48" class="mono" font-size="11.5" font-weight="600" letter-spacing="2.4" fill="#1f6b47">SENTINEL · INFRASTRUCTURE SECURITY</text>
-  <text x="40" y="82" class="serif" font-size="27">One VM, three walls: the firewall, the network rules, the sandbox</text>
+  <text x="40" y="48" class="mono" font-size="11.5" font-weight="600" letter-spacing="2.4" fill="#1f6b47">SENTINEL · NETWORK MAP</text>
+  <text x="40" y="82" class="serif" font-size="27">Who may talk to whom, from the internet to the scanners</text>
   <line x1="40" y1="96" x2="1280" y2="96" stroke="#17191e"/>
 
-  <!-- ================= inbound side ================= -->
-  <text x="40" y="132" class="zone">INTERNET · IN</text>
+  <!-- ================= inbound ================= -->
+  <text x="36" y="132" class="zone">INTERNET</text>
 
-  <rect x="36" y="150" width="190" height="62" rx="3" class="card"/>
-  <text x="50" y="176" class="h">Your laptop</text>
-  <text x="50" y="196" class="s">kubectl, through SSH only</text>
+  <rect x="36" y="150" width="180" height="48" rx="3" class="card"/>
+  <text x="50" y="171" class="h">Your laptop</text>
+  <text x="50" y="188" class="s">kubectl over SSH</text>
 
-  <rect x="36" y="392" width="190" height="62" rx="3" class="card"/>
-  <text x="50" y="418" class="h">GitHub webhooks</text>
-  <text x="50" y="438" class="s">signed, HTTPS</text>
+  <rect x="36" y="384" width="180" height="52" rx="3" class="card"/>
+  <text x="50" y="406" class="h">GitHub, Let's Encrypt</text>
+  <text x="50" y="424" class="s">webhooks, TLS check</text>
 
-  <rect x="36" y="470" width="190" height="62" rx="3" class="card"/>
-  <text x="50" y="496" class="h">Let's Encrypt</text>
-  <text x="50" y="516" class="s">HTTP-01 check for TLS</text>
-
-  <rect x="36" y="600" width="190" height="62" rx="3" fill="url(#hatch)" stroke="#c0531f"/>
-  <rect x="36" y="600" width="190" height="62" rx="3" fill="#fffefb" opacity="0.72"/>
-  <text x="50" y="626" class="h">Anyone else</text>
-  <text x="50" y="646" class="s" style="fill:#9a3f16">scans, brute force, 6443</text>
-
-  <rect x="36" y="700" width="190" height="120" rx="3" fill="#efece4" stroke="#c9c5ba"/>
-  <text x="50" y="724" class="lbl">AZURE NSG, INBOUND</text>
-  <text x="50" y="746" class="s">22 ← one /32 address</text>
-  <text x="50" y="766" class="s">80, 443 ← Internet</text>
-  <text x="50" y="786" class="s">anything else: dropped</text>
-  <text x="50" y="806" class="s">(Terraform, network.tf)</text>
+  <rect x="36" y="566" width="180" height="48" rx="3" fill="url(#hatch)" stroke="#c0531f"/>
+  <rect x="36" y="566" width="180" height="48" rx="3" fill="#fffefb" opacity="0.72"/>
+  <text x="50" y="587" class="h">Anyone else</text>
+  <text x="50" y="604" class="s" style="fill:#9a3f16">any other port, incl. 6443</text>
 
   <!-- NSG wall -->
-  <rect x="252" y="140" width="22" height="690" fill="#17191e"/>
-  <text x="263" y="132" class="lbl" text-anchor="middle">NSG</text>
+  <rect x="244" y="140" width="20" height="640" fill="#17191e"/>
+  <text x="254" y="132" class="pill" text-anchor="middle">NSG</text>
 
-  <!-- gates -->
-  <line x1="226" y1="181" x2="337" y2="181" class="flow" marker-end="url(#arr)"/>
-  <rect x="245" y="171" width="36" height="20" rx="2" fill="#1f6b47"/><text x="263" y="185" class="gate" text-anchor="middle">22</text>
+  <line x1="216" y1="174" x2="307" y2="174" class="flow" marker-end="url(#arr)"/>
+  <rect x="234" y="164" width="40" height="20" rx="2" fill="#1f6b47"/><text x="254" y="178" class="gate" text-anchor="middle">22</text>
+  <text x="36" y="216" class="s" font-size="10.5">SSH from one /32 address only</text>
 
-  <line x1="226" y1="422" x2="349" y2="422" class="flow" marker-end="url(#arr)"/>
-  <rect x="245" y="412" width="36" height="20" rx="2" fill="#1f6b47"/><text x="263" y="426" class="gate" text-anchor="middle">443</text>
+  <line x1="216" y1="410" x2="339" y2="410" class="flow" marker-end="url(#arr)"/>
+  <rect x="226" y="400" width="56" height="20" rx="2" fill="#1f6b47"/><text x="254" y="414" class="gate" text-anchor="middle">443·80</text>
 
-  <line x1="226" y1="500" x2="349" y2="500" class="flow" marker-end="url(#arr)"/>
-  <rect x="245" y="490" width="36" height="20" rx="2" fill="#1f6b47"/><text x="263" y="504" class="gate" text-anchor="middle">80</text>
+  <line x1="216" y1="590" x2="232" y2="590" stroke="#c0531f" stroke-width="1.6"/>
+  <rect x="234" y="580" width="40" height="20" rx="2" fill="#c0531f"/><text x="254" y="594" class="gate" text-anchor="middle">✕</text>
 
-  <line x1="226" y1="631" x2="244" y2="631" stroke="#c0531f" stroke-width="1.5"/>
-  <rect x="245" y="621" width="36" height="20" rx="2" fill="#c0531f"/><text x="263" y="635" class="gate" text-anchor="middle">✕</text>
+  <!-- ================= VM ================= -->
+  <rect x="292" y="112" width="808" height="680" rx="4" fill="#efece4" stroke="#17191e"/>
+  <text x="308" y="134" class="zone" style="fill:#17191e">AZURE VM</text>
+  <text x="1084" y="134" class="s" text-anchor="end">Ubuntu 24.04 · key-only SSH · Terraform</text>
 
-  <!-- ================= the VM ================= -->
-  <rect x="300" y="112" width="806" height="758" rx="4" fill="#efece4" stroke="#17191e"/>
-  <text x="318" y="136" class="zone" style="fill:#17191e">AZURE VM · UBUNTU 24.04 · 2 vCPU</text>
-  <text x="1090" y="136" class="s" text-anchor="end">created by Terraform · auto-shutdown 23:00</text>
-
-  <rect x="340" y="152" width="180" height="56" rx="3" class="card"/>
-  <text x="354" y="176" class="hs">sshd :22</text>
-  <text x="354" y="195" class="s">key only, no passwords</text>
-  <text x="540" y="186" class="s">The VM's only open doors are SSH (one address) and the web ports, which reach Traefik only.</text>
+  <rect x="310" y="150" width="140" height="48" rx="3" class="card"/>
+  <text x="324" y="171" class="h">sshd :22</text>
+  <text x="324" y="188" class="s">keys only</text>
 
   <!-- k3s -->
-  <rect x="324" y="218" width="766" height="640" rx="4" fill="#f6f4ee" stroke="#17191e"/>
-  <text x="340" y="240" class="zone" style="fill:#17191e">K3S</text>
-  <text x="1074" y="240" class="s" text-anchor="end">Secrets encrypted at rest · NetworkPolicies enforced</text>
+  <rect x="310" y="206" width="776" height="574" rx="4" fill="#f6f4ee" stroke="#17191e"/>
+  <text x="1070" y="224" class="zone" text-anchor="end" style="fill:#17191e">K3S</text>
 
-  <!-- row A -->
-  <rect x="340" y="256" width="180" height="84" rx="3" class="card"/>
-  <text x="354" y="280" class="hs">k3s API :6443</text>
-  <text x="354" y="299" class="s">closed on the NSG</text>
-  <text x="354" y="316" class="s">reached via SSH tunnel</text>
-  <line x1="430" y1="208" x2="430" y2="253" class="flow" stroke-dasharray="4 3" marker-end="url(#arr)"/>
-  <text x="438" y="236" class="ns">tunnel</text>
+  <!-- control row -->
+  <rect x="342" y="232" width="166" height="62" rx="3" class="card"/>
+  <text x="354" y="255" class="h">Sealed Secrets</text>
+  <text x="354" y="273" class="s">ns kube-system</text>
 
-  <rect x="536" y="256" width="200" height="84" rx="3" class="nsbox"/>
-  <text x="548" y="273" class="ns">namespace cert-manager</text>
-  <text x="548" y="298" class="hs">cert-manager</text>
-  <text x="548" y="317" class="s">Let's Encrypt cert, HTTP-01</text>
+  <rect x="572" y="232" width="176" height="62" rx="3" fill="#17191e"/>
+  <text x="584" y="255" class="h" style="fill:#fffefb">k3s API :6443</text>
+  <text x="584" y="273" class="s" style="fill:#c9c5ba">secrets encrypted at rest</text>
 
-  <rect x="752" y="256" width="322" height="84" rx="3" class="nsbox"/>
-  <text x="764" y="273" class="ns">namespace argocd</text>
-  <text x="764" y="298" class="hs">ArgoCD</text>
-  <text x="764" y="317" class="s">pulls Git, prune + self-heal; no UI exposed</text>
+  <rect x="812" y="232" width="116" height="62" rx="3" class="card"/>
+  <text x="824" y="255" class="h">ArgoCD</text>
+  <text x="824" y="273" class="s">ns argocd</text>
 
-  <!-- row B: kube-system -->
-  <rect x="340" y="356" width="180" height="490" rx="3" class="nsbox"/>
-  <text x="352" y="373" class="ns">namespace kube-system</text>
-  <rect x="352" y="392" width="156" height="128" rx="3" class="card"/>
-  <text x="364" y="416" class="hs">Traefik</text>
-  <text x="364" y="435" class="s">the only public door</text>
-  <text x="364" y="453" class="s">TLS, and one path:</text>
-  <text x="364" y="471" class="s mono" font-size="10.5">/webhooks/github</text>
-  <rect x="352" y="560" width="156" height="80" rx="3" class="card"/>
-  <text x="364" y="584" class="hs">Sealed Secrets</text>
-  <text x="364" y="603" class="s">the only place that</text>
-  <text x="364" y="620" class="s">can decrypt secrets</text>
+  <rect x="940" y="232" width="130" height="62" rx="3" class="card"/>
+  <text x="952" y="255" class="h">cert-manager</text>
+  <text x="952" y="273" class="s">ns cert-manager</text>
 
-  <!-- row B: sentinel -->
-  <rect x="536" y="356" width="200" height="490" rx="3" class="nsbox"/>
-  <text x="548" y="373" class="ns">namespace sentinel</text>
-  <rect x="548" y="400" width="176" height="80" rx="3" class="card"/>
-  <text x="560" y="424" class="hs">API · FastAPI :8000</text>
-  <text x="560" y="443" class="s">verifies every webhook</text>
-  <text x="560" y="460" class="s">never sees the code</text>
-  <rect x="548" y="560" width="176" height="80" rx="3" class="card"/>
-  <text x="560" y="584" class="hs">Redis :6379</text>
-  <text x="560" y="603" class="s">job queue, not published</text>
-  <text x="560" y="620" class="s">outside the cluster</text>
+  <path d="M450,174 L660,174 L660,229" class="flow" stroke-dasharray="5 3" marker-end="url(#arr)"/>
+  <text x="470" y="166" class="pill">SSH tunnel to :6443</text>
+  <line x1="508" y1="263" x2="569" y2="263" class="flow" marker-end="url(#arr)"/>
+  <line x1="812" y1="263" x2="751" y2="263" class="flow" marker-end="url(#arr)"/>
+  <text x="757" y="255" class="pill">apply</text>
 
-  <!-- row B: sentinel-scans -->
-  <rect x="752" y="356" width="322" height="490" rx="3" class="nsbox"/>
-  <text x="764" y="373" class="ns">namespace sentinel-scans</text>  <rect x="764" y="400" width="298" height="80" rx="3" class="card"/>
-  <text x="776" y="424" class="hs">Worker</text>
-  <text x="776" y="443" class="s">RBAC: create Jobs, read their logs</text>
-  <text x="776" y="460" class="s">no access to Secrets</text>
+  <!-- namespaces -->
+  <rect x="330" y="316" width="190" height="452" rx="3" class="nsbox"/>
+  <text x="342" y="334" class="ns">ns kube-system</text>
+  <rect x="560" y="316" width="200" height="452" rx="3" class="nsbox"/>
+  <text x="572" y="334" class="ns">ns sentinel</text>
+  <rect x="800" y="316" width="270" height="452" rx="3" class="nsbox"/>
+  <text x="812" y="334" class="ns">ns sentinel-scans</text>
 
-  <line x1="912" y1="480" x2="912" y2="527" class="flow" marker-end="url(#arr)"/>
-  <text x="920" y="508" class="ns">creates Jobs</text>
+  <rect x="342" y="380" width="166" height="60" rx="3" class="card"/>
+  <text x="354" y="404" class="h">Traefik</text>
+  <text x="354" y="422" class="s">only /webhooks/github</text>
 
-  <rect x="764" y="530" width="298" height="112" rx="3" fill="#e4eee6" stroke="#1f6b47"/>
-  <text x="776" y="551" class="lbl" style="fill:#1f6b47">gVisor · downloads allowed</text>
-  <text x="776" y="574" class="hs">semgrep · trivy DB update</text>
-  <text x="776" y="594" class="s">DNS to the cluster resolver,</text>
-  <text x="776" y="611" class="s">HTTPS 443 to public IPs only</text>
-  <text x="776" y="628" class="s">(never 10/8, 172.16/12, 192.168/16, 169.254/16)</text>
+  <rect x="342" y="660" width="166" height="60" rx="3" class="card"/>
+  <text x="354" y="684" class="h">CoreDNS</text>
+  <text x="354" y="702" class="s">cluster DNS</text>
 
-  <rect x="764" y="656" width="298" height="112" rx="3" fill="#e4eee6" stroke="#1f6b47"/>
-  <text x="776" y="677" class="lbl" style="fill:#1f6b47">gVisor · user nobody · read-only code</text>
-  <text x="776" y="700" class="hs">gitleaks · checkov · trivy · git apply</text>
-  <text x="776" y="720" class="s">no traffic at all, in or out:</text>
-  <text x="776" y="737" class="s">even a compromised scanner</text>
-  <text x="776" y="754" class="s">cannot call anything</text>
+  <rect x="572" y="380" width="176" height="60" rx="3" class="card"/>
+  <text x="584" y="404" class="h">API</text>
+  <text x="584" y="422" class="s">FastAPI · :8000</text>
 
-  <text x="764" y="800" class="s">Only the worker holds keys. The Jobs get no secrets</text>
-  <text x="764" y="817" class="s">and no service-account token.</text>
+  <rect x="572" y="560" width="176" height="60" rx="3" class="card"/>
+  <text x="584" y="584" class="h">Redis</text>
+  <text x="584" y="602" class="s">job queue · :6379</text>
 
-  <!-- in-cluster arrows + policies -->
-  <line x1="508" y1="440" x2="545" y2="440" class="flow" marker-end="url(#arr)"/>
-  <circle cx="528" cy="440" r="9" fill="#17191e"/><text x="528" y="444" class="num" text-anchor="middle">5</text>
+  <rect x="812" y="380" width="246" height="60" rx="3" class="card"/>
+  <text x="824" y="404" class="h">Worker</text>
+  <text x="824" y="422" class="s">holds the keys · RBAC: Jobs only</text>
 
-  <line x1="636" y1="480" x2="636" y2="557" class="flow" marker-end="url(#arr)"/>
-  <circle cx="636" cy="520" r="9" fill="#17191e"/><text x="636" y="524" class="num" text-anchor="middle">4</text>
-  <path d="M764,466 L744,466 L744,610 L727,610" class="flow" marker-end="url(#arr)"/>
-  <circle cx="744" cy="540" r="9" fill="#17191e"/><text x="744" y="544" class="num" text-anchor="middle">4</text>
+  <rect x="812" y="500" width="246" height="90" rx="3" fill="#e4eee6" stroke="#1f6b47"/>
+  <text x="824" y="522" class="h">gitleaks · checkov · trivy</text>
+  <text x="824" y="540" class="h">git apply (sandbox)</text>
+  <text x="824" y="560" class="s">gVisor · nobody · no secrets</text>
+  <text x="824" y="577" class="s">no network at all</text>
 
-  <circle cx="1046" cy="400" r="9" fill="#17191e"/><text x="1046" y="404" class="num" text-anchor="middle">3</text>
-  <circle cx="1046" cy="530" r="9" fill="#17191e"/><text x="1046" y="534" class="num" text-anchor="middle">2</text>
-  <circle cx="1046" cy="656" r="9" fill="#17191e"/><text x="1046" y="660" class="num" text-anchor="middle">1</text>
+  <rect x="812" y="640" width="246" height="80" rx="3" fill="#e4eee6" stroke="#1f6b47"/>
+  <text x="824" y="662" class="h">semgrep · trivy DB update</text>
+  <text x="824" y="681" class="s">gVisor · no secrets</text>
+  <text x="824" y="698" class="s">DNS + public HTTPS only</text>
 
-  <!-- ================= outbound side ================= -->
+  <!-- ===== allowed connections ===== -->
+  <!-- Traefik -> API -->
+  <line x1="508" y1="410" x2="569" y2="410" class="flow" marker-end="url(#arr)"/>
+  <rect x="514" y="388" width="40" height="15" rx="2" fill="#17191e"/><text x="534" y="399" class="pill pw" text-anchor="middle">8000</text>
+  <circle cx="534" cy="425" r="8" fill="#17191e"/><text x="534" y="429" class="pill pw" text-anchor="middle">5</text>
+
+  <!-- API -> Redis -->
+  <line x1="660" y1="440" x2="660" y2="557" class="flow" marker-end="url(#arr)"/>
+  <rect x="666" y="482" width="40" height="15" rx="2" fill="#17191e"/><text x="686" y="493" class="pill pw" text-anchor="middle">6379</text>
+  <circle cx="660" cy="505" r="8" fill="#17191e"/><text x="660" y="509" class="pill pw" text-anchor="middle">4</text>
+
+  <!-- Worker -> Redis -->
+  <path d="M812,430 L780,430 L780,600 L751,600" class="flow" marker-end="url(#arr)"/>
+  <rect x="760" y="526" width="40" height="15" rx="2" fill="#17191e"/><text x="780" y="537" class="pill pw" text-anchor="middle">6379</text>
+  <circle cx="780" cy="560" r="8" fill="#17191e"/><text x="780" y="564" class="pill pw" text-anchor="middle">4</text>
+
+  <!-- Worker -> k3s API: create Jobs -->
+  <path d="M900,380 L900,348 L700,348 L700,297" class="flow" marker-end="url(#arr)"/>
+  <text x="708" y="364" class="pill">create Jobs (RBAC)</text>
+
+  <!-- Worker <-> Jobs: shared volume, no network -->
+  <line x1="935" y1="442" x2="935" y2="498" stroke="#8a8d93" stroke-width="1.4" stroke-dasharray="3 3" marker-start="url(#arrm)" marker-end="url(#arrm)"/>
+  <text x="944" y="474" class="s" font-size="11">files on a shared volume</text>
+
+  <!-- network Jobs -> CoreDNS -->
+  <line x1="812" y1="690" x2="511" y2="690" stroke="#1f6b47" stroke-width="1.6" marker-end="url(#arrg)"/>
+  <rect x="640" y="682" width="28" height="15" rx="2" fill="#1f6b47"/><text x="654" y="693" class="pill pw" text-anchor="middle">53</text>
+  <circle cx="690" cy="690" r="8" fill="#17191e"/><text x="690" y="694" class="pill pw" text-anchor="middle">2</text>
+
+  <!-- ===== blocked ===== -->
+  <!-- nothing may connect to the worker -->
+  <line x1="751" y1="398" x2="770" y2="398" stroke="#c0531f" stroke-width="1.6"/>
+  <text x="786" y="403" class="pill" text-anchor="middle" style="fill:#c0531f" font-size="13">✕</text>
+  <circle cx="1046" cy="380" r="8" fill="#17191e"/><text x="1046" y="384" class="pill pw" text-anchor="middle">3</text>
+  <!-- scanner Jobs: deny all -->
+  <circle cx="1046" cy="500" r="8" fill="#17191e"/><text x="1046" y="504" class="pill pw" text-anchor="middle">1</text>
+  <line x1="1058" y1="545" x2="1100" y2="545" stroke="#c0531f" stroke-width="1.6"/>
+  <text x="1112" y="550" class="pill" text-anchor="middle" style="fill:#c0531f" font-size="13">✕</text>
+  <circle cx="1046" cy="640" r="8" fill="#17191e"/><text x="1046" y="644" class="pill pw" text-anchor="middle">2</text>
+
+  <!-- ================= outbound ================= -->
   <text x="1130" y="132" class="zone">INTERNET · OUT</text>
 
-  <rect x="1130" y="268" width="160" height="62" rx="3" class="card"/>
-  <text x="1144" y="294" class="hs">GitHub (Git)</text>
-  <text x="1144" y="313" class="s">desired state</text>
-  <line x1="1074" y1="299" x2="1127" y2="299" class="flow" marker-end="url(#arr)"/>
+  <rect x="1130" y="383" width="160" height="54" rx="3" fill="url(#hatch)" stroke="#c0531f"/>
+  <rect x="1130" y="383" width="160" height="54" rx="3" fill="#fffefb" opacity="0.72"/>
+  <text x="1142" y="405" class="h" font-size="13">LLMs, GitHub API,</text>
+  <text x="1142" y="423" class="h" font-size="13">Supabase, Langfuse</text>
+  <line x1="1058" y1="410" x2="1127" y2="410" stroke="#c0531f" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#arrr)"/>
+  <rect x="1066" y="388" width="30" height="15" rx="2" fill="#c0531f"/><text x="1081" y="399" class="pill pw" text-anchor="middle">443</text>
+  <text x="1130" y="456" class="s" style="fill:#9a3f16">not restricted yet</text>
+  <text x="1130" y="472" class="s" style="fill:#9a3f16">(known limit)</text>
 
-  <rect x="1130" y="408" width="160" height="62" rx="3" fill="url(#hatch)" stroke="#c0531f"/>
-  <rect x="1130" y="408" width="160" height="62" rx="3" fill="#fffefb" opacity="0.72"/>
-  <text x="1144" y="432" class="hs">LLMs, GitHub API,</text>
-  <text x="1144" y="451" class="hs">Supabase, Langfuse</text>
-  <line x1="1062" y1="440" x2="1127" y2="440" stroke="#c0531f" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrr)"/>
-  <text x="1130" y="490" class="s" style="fill:#9a3f16">worker egress: not limited</text>
-  <text x="1130" y="506" class="s" style="fill:#9a3f16">yet (known limit)</text>
+  <text x="1130" y="540" class="s" style="fill:#9a3f16">nothing, in or out</text>
 
-  <rect x="1130" y="555" width="160" height="62" rx="3" class="card"/>
-  <text x="1144" y="581" class="hs">Rule + CVE feeds</text>
-  <text x="1144" y="600" class="s">Semgrep, Trivy DB</text>
-  <line x1="1062" y1="586" x2="1127" y2="586" stroke="#1f6b47" stroke-width="1.5" marker-end="url(#arrg)"/>
+  <rect x="1130" y="653" width="160" height="54" rx="3" class="card"/>
+  <text x="1142" y="676" class="h" font-size="13">Rule + CVE feeds</text>
+  <text x="1142" y="694" class="s">public IPs only</text>
+  <line x1="1058" y1="680" x2="1127" y2="680" stroke="#1f6b47" stroke-width="1.6" marker-end="url(#arrg)"/>
+  <rect x="1066" y="658" width="30" height="15" rx="2" fill="#1f6b47"/><text x="1081" y="669" class="pill pw" text-anchor="middle">443</text>
+
+  <rect x="1130" y="232" width="160" height="54" rx="3" class="card"/>
+  <text x="1142" y="255" class="h" font-size="13">GitHub, Let's Encrypt</text>
+  <text x="1142" y="273" class="s">Git pulls, certificates</text>
+  <line x1="1070" y1="259" x2="1127" y2="259" class="flow" marker-end="url(#arr)"/>
 
   <!-- ================= legend ================= -->
-  <line x1="40" y1="890" x2="1280" y2="890" stroke="#17191e"/>
-  <text x="40" y="914" class="zone" style="fill:#17191e">NETWORK POLICIES (deploy/helm/sentinel/templates/networkpolicy.yaml)</text>
-  <g>
-    <circle cx="49" cy="940" r="9" fill="#17191e"/><text x="49" y="944" class="num" text-anchor="middle">1</text>
-    <text x="66" y="945" class="s" style="fill:#17191e">scanner Jobs: deny everything, in and out</text>
-    <circle cx="49" cy="968" r="9" fill="#17191e"/><text x="49" y="972" class="num" text-anchor="middle">2</text>
-    <text x="66" y="973" class="s" style="fill:#17191e">Semgrep + Trivy DB update: DNS, then HTTPS to public IPs only</text>
-    <circle cx="520" cy="940" r="9" fill="#17191e"/><text x="520" y="944" class="num" text-anchor="middle">3</text>
-    <text x="537" y="945" class="s" style="fill:#17191e">worker: nothing may connect to it</text>
-    <circle cx="520" cy="968" r="9" fill="#17191e"/><text x="520" y="972" class="num" text-anchor="middle">4</text>
-    <text x="537" y="973" class="s" style="fill:#17191e">Redis: only the API and the worker, port 6379</text>
-    <circle cx="900" cy="940" r="9" fill="#17191e"/><text x="900" y="944" class="num" text-anchor="middle">5</text>
-    <text x="917" y="945" class="s" style="fill:#17191e">API: only Traefik, port 8000</text>
-    <text x="890" y="973" class="s">Kubernetes allows the union of the policies that select a pod.</text>
+  <line x1="40" y1="812" x2="1280" y2="812" stroke="#17191e"/>
+  <g transform="translate(40,836)">
+    <line x1="0" y1="6" x2="30" y2="6" class="flow" marker-end="url(#arr)"/>
+    <text x="40" y="10" class="s" style="fill:#17191e">allowed connection, with its port</text>
+    <text x="268" y="11" class="pill" style="fill:#c0531f" font-size="13">✕</text>
+    <text x="286" y="10" class="s" style="fill:#17191e">blocked by a NetworkPolicy</text>
+    <line x1="480" y1="6" x2="510" y2="6" stroke="#8a8d93" stroke-width="1.4" stroke-dasharray="3 3"/>
+    <text x="520" y="10" class="s" style="fill:#17191e">files on a volume, not network</text>
+    <line x1="730" y1="6" x2="760" y2="6" stroke="#c0531f" stroke-width="1.6" stroke-dasharray="5 3"/>
+    <text x="770" y="10" class="s" style="fill:#17191e">allowed, but should be limited</text>
   </g>
+  <g transform="translate(40,872)">
+    <circle cx="8" cy="5" r="8" fill="#17191e"/><text x="8" y="9" class="pill pw" text-anchor="middle">1</text>
+    <text x="24" y="10" class="s" style="fill:#17191e">scanner Jobs: deny all traffic</text>
+    <circle cx="258" cy="5" r="8" fill="#17191e"/><text x="258" y="9" class="pill pw" text-anchor="middle">2</text>
+    <text x="274" y="10" class="s" style="fill:#17191e">Semgrep, Trivy DB: DNS + HTTPS to public IPs</text>
+    <circle cx="608" cy="5" r="8" fill="#17191e"/><text x="608" y="9" class="pill pw" text-anchor="middle">3</text>
+    <text x="624" y="10" class="s" style="fill:#17191e">worker: no inbound</text>
+    <circle cx="778" cy="5" r="8" fill="#17191e"/><text x="778" y="9" class="pill pw" text-anchor="middle">4</text>
+    <text x="794" y="10" class="s" style="fill:#17191e">Redis: API + worker only</text>
+    <circle cx="988" cy="5" r="8" fill="#17191e"/><text x="988" y="9" class="pill pw" text-anchor="middle">5</text>
+    <text x="1004" y="10" class="s" style="fill:#17191e">API: Traefik only</text>
+  </g>
+  <text x="40" y="918" class="s">Private ranges and the cloud metadata address are never reachable from scanner Jobs. Policies live in deploy/helm/sentinel/templates/networkpolicy.yaml.</text>
 </svg>
