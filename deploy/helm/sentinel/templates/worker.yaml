@@ -137,6 +137,8 @@ spec:
               value: redis://redis.sentinel.svc.cluster.local:6379/0
             - name: GITHUB_PRIVATE_KEY_PATH
               value: /secrets/github/private-key.pem
+            - name: LANGFUSE_TRACING_ENVIRONMENT
+              value: production
           envFrom:
             - secretRef:
                 name: {{ .Values.worker.secretName }}
