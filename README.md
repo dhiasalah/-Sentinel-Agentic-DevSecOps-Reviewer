@@ -30,7 +30,8 @@ The numbers follow one PR:
 3. The worker takes the job with `BLMOVE`, so a crash can't lose it. A job that fails goes to a dead-letter list.
 4. The scan graph (LangGraph) picks the scanners that match the files, then runs each one as its **own
    Kubernetes Job**.
-5. The findings go to the LLM through a router: Gemini first, Groq when Gemini is down or answers badly.
+5. The findings go to the LLM through a router: Gemini first by default (a repo can swap the order in its
+   dashboard settings), the other provider when the first is down or answers badly.
 6. A policy layer checks the AI's answer, then **one** comment is posted or updated on the PR.
 7. Results go to Supabase. The dashboard (Next.js on Vercel) reads them through row-level security and is where
    a human asks for a fix, then approves or rejects it.
@@ -69,7 +70,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    R([Human clicks<br/>Request a fix]) --> F[AI writes edits<br/>near the finding only]
+    R([Human clicks<br/>Request a fix]) --> F[AI writes edits near the<br/>finding, plus import lines]
     F -->|file talks to the AI,<br/>leaked secret, false positive| X([refused, with a reason])
     F --> V[Sandbox: git apply in a Job,<br/>Python must still parse,<br/>same scanners re-run]
     V -->|finding still there<br/>or a new one| X
@@ -133,9 +134,10 @@ was caught, and the rules found nothing on Sentinel's own 40 Python files.
 **Every scanner runs as its own Kubernetes Job, as if it were hostile.** A scanner reads attacker-controlled
 files with a parser that may have bugs. So each Job:
 
-- runs under **gVisor** (a user-space kernel), with every capability dropped, no privilege escalation, the
-  default seccomp profile, no service-account token, and CPU and memory limits. The root filesystem is
-  read-only except for Semgrep and the Trivy DB download, which need to write;
+- runs under **gVisor** (a user-space kernel), as the `nobody` user (except the Trivy DB download, which
+  touches no code), with every capability dropped, no privilege escalation, the default seccomp profile, no
+  service-account token, and CPU and memory limits. The root filesystem is read-only except for Semgrep and
+  the Trivy DB download, which need to write;
 - gets the code as a **read-only** mount;
 - has **no network** by default. Only the Semgrep rule download and the Trivy DB update may reach the public
   internet, over HTTPS only, and never private ranges or the cloud metadata address. Trivy downloads its
@@ -180,7 +182,7 @@ cost visible: on some days every Gemini call waited ~29 s before failing.
 | PR author | Hide a bug from the scanner | repo ignore files and inline suppressions ignored |
 | PR author | Exploit a scanner parser | Job per scanner: gVisor, no network, read-only code, no secrets, pinned image |
 | PR author | Make the bot post links or ping people | escaping, neutralised links and mentions, length caps |
-| PR author | Get a malicious "fix" merged | sandbox re-scan, edits only near the finding, human approval bound to the patch id, never auto-merged |
+| PR author | Get a malicious "fix" merged | sandbox re-scan, edits only near the finding (or import lines), human approval bound to the patch id, never auto-merged |
 | Anyone on the internet | Forge or replay webhooks | HMAC on the raw body (`compare_digest`), replay cache, API reachable only through Traefik |
 | A compromised worker | Pivot in the cluster | RBAC: Jobs only, no Secrets; Redis accepts only API + worker |
 | A bad commit | Ship a vulnerable image | tests + red-team suite + Trivy gate the build; tags pinned by SHA |
@@ -213,7 +215,7 @@ cost visible: on some days every Gemini call waited ~29 s before failing.
 | API | FastAPI, Redis 8 queue |
 | Web | Next.js 16, React 19, Tailwind 4, Supabase (Postgres, row-level security, GitHub OAuth), live progress over SSE, on Vercel |
 | Infra | Terraform (Azure VM, network, firewall), k3s, Helm, ArgoCD, Sealed Secrets, cert-manager + Let's Encrypt, Traefik, gVisor |
-| CI/CD | GitHub Actions, Trivy image scan, GHCR, actions pinned by SHA |
+| CI/CD | GitHub Actions (GitHub-made actions only, `checkout` pinned by SHA), Trivy image scan, GHCR |
 | Observability | Langfuse (OpenTelemetry), metadata only |
 | Tests | pytest, fakeredis, an injection corpus, a benchmark with an answer key (`evals/`) |
 
