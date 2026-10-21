@@ -1,0 +1,91 @@
+rules:
+  - id: sentinel.python.sql-built-from-string
+    languages: [python]
+    severity: ERROR
+    message: SQL query built by string formatting. Use a parameterised query (placeholders + a tuple of values).
+    metadata:
+      cwe: ["CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"]
+    pattern-either:
+      - pattern: $DB.execute("..." % $X, ...)
+      - pattern: $DB.execute("..." + $X, ...)
+      - pattern: $DB.execute("...".format(...), ...)
+      - pattern: $DB.execute(f"...", ...)
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  $Q = "..." % $X
+                  ...
+              - pattern-inside: |
+                  $Q = "..." + $X
+                  ...
+              - pattern-inside: |
+                  $Q = "...".format(...)
+                  ...
+              - pattern-inside: |
+                  $Q = f"..."
+                  ...
+          - pattern: $DB.execute($Q, ...)
+
+  - id: sentinel.python.path-from-argument
+    languages: [python]
+    severity: ERROR
+    message: File path built from a function argument and opened without checking it stays inside the base folder (path traversal, e.g. "../../etc/passwd").
+    metadata:
+      cwe: ["CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"]
+    patterns:
+      - pattern-inside: |
+          def $F(..., $P, ...):
+            ...
+      - pattern-not-inside: |
+          if <... os.path.commonpath(...) ...>:
+            ...
+      - pattern-either:
+          - pattern: open(os.path.join(..., $P, ...), ...)
+          - pattern: open(os.path.join(..., <... $P ...>, ...), ...)
+
+  - id: sentinel.python.insecure-random-for-secret
+    languages: [python]
+    severity: WARNING
+    message: The random module is predictable. Use the secrets module for tokens, passwords and keys.
+    metadata:
+      cwe: ["CWE-338: Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)"]
+    patterns:
+      - pattern-inside: |
+          def $F(...):
+            ...
+      - metavariable-regex:
+          metavariable: $F
+          regex: (?i).*(token|passw|secret|key|otp|nonce|salt|session|reset).*
+      - pattern-either:
+          - pattern: random.choice(...)
+          - pattern: random.choices(...)
+          - pattern: random.randint(...)
+          - pattern: random.random()
+          - pattern: random.getrandbits(...)
+          - pattern: random.sample(...)
+
+  - id: sentinel.python.unsafe-deserialization
+    languages: [python]
+    severity: ERROR
+    message: Loading pickle/marshal/dill data runs code chosen by whoever made the data. Use JSON for untrusted input.
+    metadata:
+      cwe: ["CWE-502: Deserialization of Untrusted Data"]
+    pattern-either:
+      - pattern: pickle.loads(...)
+      - pattern: pickle.load(...)
+      - pattern: marshal.loads(...)
+      - pattern: dill.loads(...)
+
+  - id: sentinel.python.flask-open-redirect
+    languages: [python]
+    severity: WARNING
+    message: Redirect target comes from the request. An attacker can send users to any site; allow only relative paths or known hosts.
+    metadata:
+      cwe: ["CWE-601: URL Redirection to Untrusted Site ('Open Redirect')"]
+    mode: taint
+    pattern-sources:
+      - pattern: flask.request.$ANY
+    pattern-sinks:
+      - patterns:
+          - pattern: flask.redirect($URL, ...)
+          - focus-metavariable: $URL
