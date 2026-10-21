@@ -17,6 +17,8 @@ class BadAnswer(Exception):
 
 class Provider(Protocol):
     name: str
+    model: str
+    last_usage: dict[str, int] | None
 
     def complete(self, system: str, user: str, json_mode: bool = False) -> str: ...
 
@@ -28,12 +30,14 @@ class GeminiProvider:
             api_key=api_key,
             http_options=genai_types.HttpOptions(timeout=30_000),
         )
-        self._model = model
+        self.model = model
+        self.last_usage = None
 
     def complete(self, system: str, user: str, json_mode: bool = False) -> str:
+        self.last_usage = None
         try:
             response = self._client.models.generate_content(
-                model=self._model,
+                model=self.model,
                 contents=user,
                 config=genai_types.GenerateContentConfig(
                     system_instruction=system,
@@ -50,6 +54,11 @@ class GeminiProvider:
             raise
         except httpx.TransportError as e:
             raise ProviderUnavailable(f"gemini network error: {type(e).__name__}") from e
+        usage = response.usage_metadata
+        if usage:
+            # thinking tokens are billed as output, so they count as output here too
+            self.last_usage = {"input": usage.prompt_token_count or 0,
+                               "output": (usage.candidates_token_count or 0) + (usage.thoughts_token_count or 0)}
         return response.text or ""
 
 class GroqProvider:
@@ -57,13 +66,15 @@ class GroqProvider:
 
     def __init__(self, api_key: str, model: str):
         self._client = groq.Groq(api_key=api_key, timeout=30, max_retries=0)
-        self._model = model
+        self.model = model
+        self.last_usage = None
 
     def complete(self, system: str, user: str, json_mode: bool = False) -> str:
+        self.last_usage = None
         extra = {"response_format": {"type": "json_object"}} if json_mode else {}
         try:
             response = self._client.chat.completions.create(
-                model=self._model,
+                model=self.model,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
@@ -84,4 +95,6 @@ class GroqProvider:
             if e.status_code == 413:  # prompt over the tier's tokens-per-minute budget: a quota, not a bug
                 raise ProviderUnavailable("groq: request too large") from e
             raise
+        if response.usage:
+            self.last_usage = {"input": response.usage.prompt_tokens, "output": response.usage.completion_tokens}
         return response.choices[0].message.content or ""
