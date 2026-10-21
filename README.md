@@ -104,6 +104,33 @@ with the cluster's public key; the controller in the cluster is the only thing t
 
 ---
 
+## Infrastructure and network security
+
+![Sentinel infrastructure: the Azure firewall allows SSH from one address and web traffic to Traefik only; inside k3s, five namespaces and five NetworkPolicies separate the public API, the worker and the sandboxed scanner Jobs](docs/infrastructure.svg)
+
+Everything runs on one Azure VM, built by Terraform. A request has to get past three walls:
+
+1. **The Azure firewall (NSG).** It allows only three ports in: 22 (SSH) from one /32 address, and 80 and 443
+   from the internet. Everything else is dropped, including the Kubernetes API on 6443. `kubectl` reaches the
+   cluster through an SSH tunnel, and SSH accepts keys only, no passwords.
+2. **Network rules inside the cluster.** Traefik is the only public door, and it routes exactly one path,
+   `/webhooks/github`. Five NetworkPolicies (numbered in the diagram) decide which pods may talk:
+   - the API accepts traffic from Traefik only;
+   - Redis accepts the API and the worker only;
+   - nothing may connect to the worker;
+   - scanner Jobs get no network at all, except Semgrep and the Trivy DB update, which may resolve DNS and
+     reach public IPs over HTTPS (never private ranges or the cloud metadata address).
+3. **The sandbox.** Every scanner Job runs under gVisor, without secrets or a service-account token.
+
+**Why these namespaces.** One namespace per trust level. `sentinel` holds the public-facing API and Redis.
+`sentinel-scans` holds the worker and the scanner Jobs, which touch attacker code. That keeps the worker's
+RBAC (create Jobs, no Secrets), the network rules and the pod-security level (`restricted`, in warn + audit
+mode) in one place, without loosening `sentinel`. The platform tools stay in their own namespaces:
+`kube-system` (Traefik, Sealed Secrets), `cert-manager` and `argocd`. Sentinel's chart can't touch them, and
+they can be upgraded on their own.
+
+---
+
 ## Design decisions
 
 **The AI can't hide a bug, even when it's fooled.** Prompt injection is not something a prompt can fully fix,
