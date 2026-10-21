@@ -1,7 +1,7 @@
 import pytest
 
 from sentinel.models import Finding, TriagedIssue
-from sentinel.policy import apply_policy, looks_like_injection
+from sentinel.policy import apply_policy, looks_like_injection, looks_like_suppression
 
 
 def make_issue(severity="high", false_positive=False, scanner="ERROR"):
@@ -43,3 +43,22 @@ def test_normal_code_is_not_flagged():
     
 def test_ai_cannot_lower_a_critical_dependency():
     assert apply_policy(make_issue(severity="low", scanner="CRITICAL"), []).severity == "critical"
+
+
+@pytest.mark.parametrize("text", [
+    'query = f"SELECT * FROM t WHERE id={uid}"  # nosemgrep',
+    "eval(data)  # nosem: python.lang.security.eval",
+    'TOKEN = "ghp_abc123"  # gitleaks:allow',
+    "# checkov:skip=CKV_DOCKER_3: runs as root on purpose",
+])
+def test_detects_scanner_suppressions(text):
+    assert looks_like_suppression(text)
+
+
+def test_normal_code_is_not_a_suppression():
+    assert not looks_like_suppression("# semgrep found nothing here\nallow_list = ['a', 'b']")
+
+
+def test_suppression_near_a_finding_is_flagged():
+    result = apply_policy(make_issue(), ['10: eval(data)  # nosemgrep'])
+    assert any("switch off a scanner" in r for r in result.review_reasons)
