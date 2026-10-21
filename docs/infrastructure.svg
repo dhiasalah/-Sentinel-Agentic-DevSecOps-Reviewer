@@ -222,6 +222,8 @@
     <text x="520" y="10" class="s" style="fill:#17191e">files on a volume, not network</text>
     <line x1="730" y1="6" x2="760" y2="6" stroke="#c0531f" stroke-width="1.6" stroke-dasharray="5 3"/>
     <text x="770" y="10" class="s" style="fill:#17191e">allowed, but should be limited</text>
+    <rect x="978" y="-1" width="26" height="14" rx="2" fill="#e4eee6" stroke="#1f6b47"/>
+    <text x="1014" y="10" class="s" style="fill:#17191e">scanner Jobs, sandboxed (gVisor)</text>
   </g>
   <g transform="translate(40,872)">
     <circle cx="8" cy="5" r="8" fill="#17191e"/><text x="8" y="9" class="pill pw" text-anchor="middle">1</text>
