@@ -89,6 +89,8 @@ they can be upgraded on their own.
 
 ## Design decisions
 
+![How a fooled AI still can't hide a bug: a PR hides a pickle bug under a comment telling the AI to mark it info; Semgrep reports HIGH; the random fence asks the AI to treat code as data; the AI may still obey; plain-Python guardrails force every finding to stay, keep the severity floor and turn false positive into a review flag; a regex tripwire adds a human-review flag and stops the fixer; the PR comment shows HIGH with a warning. Red-team: guardrails 10/10, tripwire 6/10](docs/ai-guardrails.svg)
+
 **The AI can't hide a bug, even when it's fooled.** Prompt injection is not something a prompt can fully fix,
 so the defences that matter are in plain Python, after the model answers:
 
