@@ -37,70 +37,26 @@ The numbers follow one PR:
    a human asks for a fix, then approves or rejects it.
 8. An approved patch becomes a PR into the PR's own branch. Nothing is ever merged by Sentinel.
 
-### A pull request, step by step
+### Fixes (the fix-graph row)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant GH as GitHub
-    participant API as API (FastAPI)
-    participant Q as Redis
-    participant W as Worker (LangGraph)
-    participant J as Scanner Jobs (gVisor)
-    participant AI as LLM router
-    participant DB as Supabase
-    GH->>API: pull_request webhook (HMAC-signed)
-    API->>API: verify signature, drop replay
-    API->>Q: LPUSH job {repo, pr, sha, installation}
-    W->>Q: BLMOVE jobs to processing
-    W->>GH: token for 1 repo, contents:read
-    W->>W: shallow checkout of the exact SHA
-    par one Job per scanner
-        W->>J: semgrep / trivy / gitleaks / checkov
-        J-->>W: findings (JSON file)
-    end
-    W->>AI: findings + code inside a random untrusted fence
-    AI-->>W: JSON, checked against a schema
-    W->>W: policy: severity floor, nothing dropped, flags
-    W->>GH: new token, pull_requests:write, upsert 1 comment
-    W->>DB: scan, issues, live progress events
-```
+A fix starts only when a human clicks **Request a fix** on the dashboard. The AI may edit only the lines near
+the finding (plus import lines). The fixer refuses outright when a file talks to the AI, when the issue is a
+leaked secret (it must be rotated, not deleted) or when it was marked a false positive. The sandbox applies the
+patch with `git apply` in a Job, checks that Python still parses, and re-runs the same scanners: the finding
+must be gone and no new one may appear.
 
-### A fix, step by step
+The fix graph then pauses at the approval step with a LangGraph `interrupt`, and its state is checkpointed in
+SQLite on a volume, so a fix can wait for days and survive a restart. The approval names the **patch id**. If
+the PR received new commits since the patch was made, the approval no longer matches the code and the fix is
+marked outdated instead of applied.
 
-```mermaid
-flowchart LR
-    R([Human clicks<br/>Request a fix]) --> F[AI writes edits near the<br/>finding, plus import lines]
-    F -->|file talks to the AI,<br/>leaked secret, false positive| X([refused, with a reason])
-    F --> V[Sandbox: git apply in a Job,<br/>Python must still parse,<br/>same scanners re-run]
-    V -->|finding still there<br/>or a new one| X
-    V --> H{{Human approves<br/>patch id on the dashboard}}
-    H -->|PR got new commits| O([outdated, not applied])
-    H -->|reject| X
-    H -->|approve| P[Push branch sentinel/fix-id,<br/>open a PR into the PR branch]
-```
+### Delivery (the bottom band)
 
-The fix graph pauses at the approval step with a LangGraph `interrupt`, and its state is checkpointed in SQLite
-on a volume, so a fix can wait for days and survive a restart. The approval names the **patch id**. If the PR
-received new commits since the patch was made, the approval no longer matches the code and the fix is marked
-outdated instead of applied.
-
-### From a commit to the cluster
-
-```mermaid
-flowchart LR
-    A[git push main] --> B[CI: API, worker and scanner tests<br/>incl. the red-team suite]
-    B -->|any red test| S1([stop: no image])
-    B --> C[docker build + Trivy<br/>HIGH/CRITICAL fixable]
-    C -->|finding| S2([stop: nothing pushed])
-    C --> D[GHCR, tag = commit SHA]
-    D --> E[values.yaml: worker.tag pinned in Git]
-    E --> F[ArgoCD syncs the Helm chart<br/>prune + self-heal]
-```
-
-Images are never tagged `latest`. A tag is a commit SHA from a green run, written in Git, so every deploy is
-a reviewable commit and a rollback is a revert. Secrets are committed only as **Sealed Secrets**, encrypted
-with the cluster's public key; the controller in the cluster is the only thing that can open them.
+CI runs the API, worker and scanner tests, including the red-team suite: one red test and no image is built.
+The image is then scanned by Trivy: a fixable HIGH or CRITICAL finding and nothing is pushed. Images are never
+tagged `latest`. A tag is a commit SHA from a green run, written in Git, so every deploy is a reviewable commit
+and a rollback is a revert. Secrets are committed only as **Sealed Secrets**, encrypted with the cluster's
+public key; the controller in the cluster is the only thing that can open them.
 
 ---
 
