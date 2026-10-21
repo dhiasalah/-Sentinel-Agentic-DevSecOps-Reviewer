@@ -16,6 +16,9 @@ INJECTION_PATTERN = re.compile(
     r"|^\s*#?\s*system\s*:",
     re.IGNORECASE | re.MULTILINE,
 )
+# Inline "ignore me" switches of the scanners Sentinel runs. They are already disabled at scan time
+# (--disable-nosem, --ignore-gitleaks-allow, skipped checks reported); this makes the attempt visible.
+SUPPRESSION_PATTERN = re.compile(r"\bnosem(grep)?\b|gitleaks:allow|checkov:skip", re.IGNORECASE)
 
 
 def rank(severity: Severity) -> int:
@@ -31,6 +34,10 @@ def looks_like_injection(text: str) -> bool:
     return bool(INJECTION_PATTERN.search(text))
 
 
+def looks_like_suppression(text: str) -> bool:
+    return bool(SUPPRESSION_PATTERN.search(text))
+
+
 def apply_policy(issue: TriagedIssue, snippets: list[str]) -> TriagedIssue:
     reasons = []
     severity = issue.severity
@@ -42,4 +49,6 @@ def apply_policy(issue: TriagedIssue, snippets: list[str]) -> TriagedIssue:
         reasons.append("AI marked it as a false positive")
     if any(looks_like_injection(s) for s in snippets):
         reasons.append("code near this finding addresses the AI (possible prompt injection)")
+    if any(looks_like_suppression(s) for s in snippets):
+        reasons.append("code near this finding tries to switch off a scanner (suppression comment)")
     return issue.model_copy(update={"severity": severity, "review_reasons": reasons})
