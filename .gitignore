@@ -24,3 +24,5 @@ infra/terraform/.terraform/
 *.tfvars
 crash.log
 oracle-retry-log.txt
+# Claude Code mentor instructions (local only)
+/CLAUDE.md
