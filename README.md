@@ -252,3 +252,8 @@ docs/              demo GIF + architecture diagram
    starts the worker, and a tunnel (e.g. smee.io) forwards the App's webhooks to
    `http://127.0.0.1:8000/webhooks/github`. The App needs *Contents: read*, *Pull requests: write* and the
    *Pull request* event (*Contents: write* only for fix PRs). Optional: `LANGFUSE_*` keys turn on tracing.
+
+## License
+
+Copyright (c) 2026 Ben Salah Mohamed Dhia. **All rights reserved.** This code is public for viewing only; using,
+copying, modifying or redistributing it requires written permission. See [LICENSE](LICENSE).
